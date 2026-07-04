@@ -192,8 +192,11 @@ with tab_mexc:
                     pos_type_raw = pos.get("openType") # 1:逐倉, 2:全倉
                     
                     # 辨識多空 (1:多單, 2:空單 或用 side 判斷)
-                    side_raw = pos.get("side") # 1=Long, 3=Short
-                    if side_raw == 1 or "LONG" in str(pos.get("positionType", "")).upper():
+                    side_raw = pos.get("side") 
+                    pos_type_str = str(pos.get("positionType", "")).upper()
+                    
+                    # 💡 重新校正：只要包含 LONG、或者是 side == 1，一律正確識別為做多
+                    if "LONG" in pos_type_str or side_raw == 1:
                         pos_label = "🟢 LONG (做多)"
                         target_tp = entry_price * (1 + tp_pct / 100)
                         target_sl = entry_price * (1 - sl_pct / 100)
