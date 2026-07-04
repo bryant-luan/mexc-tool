@@ -10,7 +10,7 @@ from datetime import datetime
 MEXC_FUT_URL = "https://contract.mexc.com"
 
 st.set_page_config(page_title="MEXC 智慧量化終端", layout="wide")
-st.title("🎛️ 動態移動追蹤 ＆ 實時持倉合體量化終端")
+st.title("🎛️ 動態移動追蹤 ＆ 批次智慧平倉量化終端")
 
 # ------------------------------------------------------------------
 # ⚙️ 側邊欄設定
@@ -38,8 +38,6 @@ if "auto_trade_logs" not in st.session_state:
     st.session_state.auto_trade_logs = []
 if "coin_vol_settings" not in st.session_state:
     st.session_state.coin_vol_settings = {coin: 10 if "GWEI" in coin else 1 for coin in SUPPORTED_COINS}
-
-# 💡 【核心狀態升級】：真實持倉的移動追蹤動態紀錄庫庫
 if "real_portfolio_trailing" not in st.session_state:
     st.session_state.real_portfolio_trailing = {}
 
@@ -87,7 +85,7 @@ def fetch_mexc_positions(a_key, a_secret):
         return {"success": False, "msg": str(e)}
 
 # ------------------------------------------------------------------
-# 🕵️ CryptoQuant 多幣種市場模擬（即時行情源）
+# 🕵️ CryptoQuant 多幣種市場模擬
 # ------------------------------------------------------------------
 def fetch_multi_coin_market_data():
     import random
@@ -113,19 +111,15 @@ tab_whale, tab_config, tab_mexc = st.tabs([
 market_tick = fetch_multi_coin_market_data()
 all_prices = market_tick["prices"]
 
-# --- 前置分頁介面保持運作 ---
-with tab_whale:
-    st.markdown("### 🕵️ 實時多幣種巨鯨雷達面板")
-    st.caption("雷達監控中...")
-with tab_config:
-    st.markdown("### ⚙️ 實時多幣種下單參數控制牆")
+with tab_whale: st.markdown("### 🕵️ 實時多幣種巨鯨雷達面板")
+with tab_config: st.markdown("### ⚙️ 實時多幣種下單參數控制牆")
 
 # ==========================================
-# 🚀【超核心改版】分頁三：MEXC 實時移動追蹤持倉
+# 🚀 分頁三：MEXC 實時移動追蹤持倉（新增批次平倉功能）
 # ==========================================
 with tab_mexc:
     st.markdown("### 🚀 MEXC 實時真實持倉 ＆ 移動追蹤防線")
-    st.caption("此面板已改造成「動態移動跟蹤追蹤器」。系統會鎖定你的開倉均價，並隨著市場最新報價即時更新歷史最高點、動態推高你的移動止損生命線！")
+    st.caption("此面板已整合「動態移動跟蹤」與「一鍵戰術批次盈利平倉」功能。")
     
     if not api_key or not api_secret:
         st.warning("👋 請先在左側邊欄輸入您的 MEXC API 金鑰，以啟動真實持倉動態追蹤機制。")
@@ -143,13 +137,12 @@ with tab_mexc:
             for p in raw_positions:
                 vol = float(p.get("holdVol") or p.get("positionSize") or 0)
                 if vol > 0:
-                    # 格式化符合我們行情對照的 Symbol (如 GWEI_USDT)
                     raw_sym = p.get("symbol", "")
                     formatted_sym = raw_sym if "_" in raw_sym else f"{raw_sym.replace('USDT', '')}_USDT"
                     active_list.append((p, vol, formatted_sym))
                     current_active_symbols.add(formatted_sym)
             
-            # 清理：如果交易所已經手動平倉了某個幣，就從我們本地的追蹤快取中刪除
+            # 清理快取
             for cached_coin in list(st.session_state.real_portfolio_trailing.keys()):
                 if cached_coin not in current_active_symbols:
                     del st.session_state.real_portfolio_trailing[cached_coin]
@@ -157,6 +150,43 @@ with tab_mexc:
             if not active_list:
                 st.info("⏳ 讀取成功！目前您在 MEXC 帳戶中沒有任何正在開倉的合約部位。")
             else:
+                # ----------------------------------------------------------
+                # 🔥 【🔥全新戰術功能】：一鍵批次盈利平倉控制面板
+                # ----------------------------------------------------------
+                st.markdown("#### ⚡ 戰術快捷控制台")
+                
+                # 計算目前有幾筆單是賺錢的
+                profit_positions_count = sum(1 for p, _, _ in active_list if float(p.get("unRealizedPnl") or 0) > 0)
+                
+                # 炫酷的一鍵平倉按鈕配置
+                btn_label = f"💰 一鍵鎖定利潤：批次平倉所有盈利單 (當前有 {profit_positions_count} 筆正收益)"
+                
+                # 只要有賺錢的單，按鈕就亮起，否則停用避免誤觸
+                if profit_positions_count > 0:
+                    if st.button(btn_label, type="primary", use_container_width=True):
+                        with st.spinner("🚀 正在極速清空所有浮盈倉位..."):
+                            success_count = 0
+                            for p, vol, symbol in active_list:
+                                pnl = float(p.get("unRealizedPnl") or 0)
+                                # 🔍 只對浮盈大於 0 的部位下手
+                                if pnl > 0:
+                                    # 發送平多單指令 (side=4)
+                                    res = place_mexc_futures_order(api_key, api_secret, symbol=symbol, side=4, order_type=5, vol=vol)
+                                    if res.get("success") or res.get("code") == 0:
+                                        success_count += 1
+                                        st.success(f"✅ 成功平倉 {symbol} ｜ 撈回浮盈: ${pnl:+.2f}")
+                                    else:
+                                        st.error(f"❌ {symbol} 平倉失敗: {res.get('message')}")
+                            
+                            st.toast(f"🎉 批次任務結束！成功收割 {success_count} 筆盈利部位！")
+                            time.sleep(1.5)
+                            st.rerun()  # 馬上重整刷新持倉畫面
+                else:
+                    st.button("⚪ 當前無任何盈利部位（按鈕已鎖定）", disabled=True, use_container_width=True)
+                
+                st.divider()
+
+                # 2. 渲染真實持倉追蹤矩陣卡片
                 st.markdown(f"#### 📊 真實持倉追蹤矩陣 ({len(active_list)} 筆)")
                 
                 for pos, vol, symbol in active_list:
@@ -165,11 +195,8 @@ with tab_mexc:
                     unrealized_pnl = float(pos.get("unRealizedPnl") or 0)
                     leverage = pos.get("leverage", 10)
                     
-                    # 實時從我們剛剛的行情包裡抓取該幣種的「最新市場價」
-                    # 如果不巧不包含在預設清單中，就用開倉價加上未實現利潤來安全反推
                     live_market_price = all_prices.get(symbol, entry_price)
                     
-                    # 💡 【強制做多邏輯核心】：初始化或動態更新此持倉的移動追蹤狀態
                     if symbol not in st.session_state.real_portfolio_trailing:
                         st.session_state.real_portfolio_trailing[symbol] = {
                             "highest_price": max(entry_price, live_market_price),
@@ -178,40 +205,31 @@ with tab_mexc:
                     
                     track_status = st.session_state.real_portfolio_trailing[symbol]
                     
-                    # 📈 如果實時行情創下開倉以來的新高 -> 向上推高生命線
                     if live_market_price > track_status["highest_price"]:
                         track_status["highest_price"] = live_market_price
-                        # 核心公式：最新最高價 扣掉 設定的回檔百分比
                         track_status["stop_loss_line"] = live_market_price * (1 - activation_pct / 100)
                     
-                    # 🚨 檢查是否觸發移動止損平倉條件
                     triggered_sl = False
                     if live_market_price <= track_status["stop_loss_line"]:
                         triggered_sl = True
-                        # 真實發送市價平倉單給交易所 (side=4 代表平多)
                         place_mexc_futures_order(api_key, api_secret, symbol=symbol, side=4, order_type=5, vol=vol)
-                        st.toast(f"🚨 {symbol} 價格破動態防線！已自動發送市價平倉指令！")
+                        st.toast(f"🚨 {symbol} 價格破動態防線！自動平倉！")
                     
-                    # 🎨 渲染全新「移動追蹤流」卡片介面
+                    # 卡片 UI 渲染
                     with st.container(border=True):
                         col_a, col_b, col_c, col_d = st.columns(4)
                         
-                        # 欄位 A：資產基本資訊
                         col_a.markdown(f"### 🪙 {symbol}")
                         col_a.markdown("標籤: **🟢 LONG (做多)**")
                         col_a.markdown(f"槓桿: `{leverage}X` ｜ 數量: **{int(vol)} 張**")
                         
-                        # 欄位 B：價格對比
                         col_b.metric("開倉均價", f"${entry_price:.4f}")
                         col_b.metric("最新市場價", f"${live_market_price:.4f}")
                         
-                        # 欄位 C：追蹤黑科技（取代舊有的固定 TP/SL）
                         col_c.metric("📈 波段最高價", f"${track_status['highest_price']:.4f}")
-                        # 如果跌破，就把顏色換成紅色警告
                         sl_display_label = "🔥 動態移動止損線" if not triggered_sl else "🚨 防線跌破！平倉中"
                         col_c.metric(sl_display_label, f"${track_status['stop_loss_line']:.4f}")
                         
-                        # 欄位 D：未實現損益狀態
                         pnl_color = "green" if unrealized_pnl >= 0 else "red"
                         col_d.markdown("##### 未實現盈虧")
                         html_pnl = f"<h2 style='color:{pnl_color}; margin:0;'>${unrealized_pnl:+.2f}</h2>"
