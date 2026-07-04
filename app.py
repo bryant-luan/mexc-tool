@@ -215,9 +215,13 @@ with tab_mexc:
                         col_c.metric("預期止損點 (SL)", f"${target_sl:.4f}")
                         
                         # 盈虧標色
-                        pnl_color = "green" if unrealized_pnl >= 0 else "red"
+                       pnl_color = "green" if unrealized_pnl >= 0 else "red"
                         col_d.markdown("##### 未實現盈虧")
-                        col_d.markdown(f"<h2 style='color:{pnl_color}; margin:0;'>${unrealized_pnl:+.2f}</h2>", unsafe_view_allowed=True)
+                        
+                        # 修正 f-string 轉義與正確參數名 unsafe_allow_html=True
+                        html_pnl = f"<h2 style='color:{pnl_color}; margin:0;'>${unrealized_pnl:+.2f}</h2>"
+                        col_d.markdown(html_pnl, unsafe_allow_html=True)
+                        
                         col_d.caption(f"強平價格: ${liq_price:.4f}")
 
 # ------------------------------------------------------------------
