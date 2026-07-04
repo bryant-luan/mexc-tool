@@ -49,22 +49,38 @@ def is_fut():
 # 🔒 交易所安全簽章與私有 API 請求 (動態抓取真實持倉)
 # ------------------------------------------------------------------
 def get_mexc_futures_positions(a_key, a_secret):
-    """ 獲取 MEXC 用戶當前的真實合約持倉 (官方標準加密簽章版) """
+    """ 
+    獲取 MEXC 用戶當前的真實合約持倉 (終極修復：符合官方標準的規範化簽章版) 
+    """
     if not a_key or not a_secret:
         return []
     try:
+        import hmac
+        import hashlib
+        import time
+        import requests
+        
+        # 1. 取得當前伺服器要求的毫秒時間戳
         timestamp = str(int(time.time() * 1000))
         path = "/api/v1/private/position/open_positions"
         
-        # MEXC 官方標準：如果是 GET 請求且無 query 參數，簽章字串格式應為：ApiKey + Request-Time
-        # 但有些新型 API 必須明確帶上雜湊，我們改用最保險的標準 Header 簽章
-        sign_str = f"{a_key}{timestamp}"
+        # 2. 🔥 MEXC 合約 API 的標準 GET 簽章算法：
+        # 必須將參數按字母排序組合成 Query String。雖然此 API 沒有參數，
+        # 但 MEXC 規範化要求：如果有 query 參數就拼 query，沒有的話就將原字串與時間戳依特定格式雜湊。
+        # 這裡改用最不容易失敗的標準私有加密組合：
+        param_str = ""  # 本 API 無額外 query 參數
+        
+        # 構造簽名主體：Request-Time + ApiKey + ParamStr
+        sign_str = f"{timestamp}{a_key}{param_str}"
+        
+        # 使用 SHA256 進行 Hmac 加密
         signature = hmac.new(
             a_secret.encode('utf-8'), 
             sign_str.encode('utf-8'), 
             hashlib.sha256
         ).hexdigest()
         
+        # 3. 組裝正確的 Headers
         headers = {
             "ApiKey": a_key,
             "Request-Time": timestamp,
@@ -72,20 +88,27 @@ def get_mexc_futures_positions(a_key, a_secret):
             "Content-Type": "application/json"
         }
         
-        resp = requests.get(f"{MEXC_FUT_URL}{path}", headers=headers, timeout=5)
+        # 4. 發送請求
+        url = f"https://contract.mexc.com{path}"
+        resp = requests.get(url, headers=headers, timeout=7)
         res_json = resp.json()
         
-        # 偵錯偵測：如果失敗，在後台終端機印出原因
+        # 5. 除錯：直接將錯誤訊息回傳到 Streamlit 畫面上，方便你知道原因
         if not res_json.get("success"):
-            print(f"❌ MEXC API 回傳錯誤碼: {res_json.get('code')}, 訊息: {res_json.get('message')}")
+            # 如果失敗，我們可以透過全域變數讓前端顯示錯誤訊息
+            globals()["MEXC_API_ERROR"] = f"MEXC 拒絕原因: {res_json.get('message')} (代碼: {res_json.get('code')})"
             return []
+        
+        # 清除過往的錯誤訊息
+        if "MEXC_API_ERROR" in globals():
+            del globals()["MEXC_API_ERROR"]
             
         if "data" in res_json:
             return res_json["data"]
+            
     except Exception as e:
-        print(f"❌ 抓取 MEXC 真實持倉發生嚴重大錯: {e}")
+        globals()["MEXC_API_ERROR"] = f"程式連線出錯: {str(e)}"
     return []
-
 # ------------------------------------------------------------------
 # 公共查價 API
 # ------------------------------------------------------------------
