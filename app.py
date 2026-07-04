@@ -83,26 +83,37 @@ else:
         if not result["success"]:
             st.error(result["msg"])
         else:
+            else:
             positions = result["data"]
-            # 篩選真正有持倉的部位 (positionSize > 0)
-            active_positions = [p for p in positions if float(p.get("positionSize", 0)) > 0]
+            
+            # 🔥 升級：全相容篩選機制（通殺 MEXC 各種幣別與欄位名）
+            active_positions = []
+            for p in positions:
+                # 同時嘗試抓取所有 MEXC 可能出現的持倉數量欄位
+                size = float(p.get("positionSize") or p.get("size") or p.get("vol") or p.get("openSize") or 0)
+                if size > 0:
+                    active_positions.append((p, size))
             
             if not active_positions:
                 st.info("⏳ 目前您在 MEXC 帳戶中沒有任何開倉中的合約部位。")
+                # 偵錯用：如果還是空，把交易所原始回傳的 JSON 結構吐出來看
+                with st.expander("🛠️ 偵錯專用：查看交易所原始回傳資料"):
+                    st.json(positions)
             else:
                 st.markdown(f"### 📊 當前真實持倉清單 ({len(active_positions)} 筆)")
                 
-                for pos in active_positions:
+                for pos, size in active_positions:
                     symbol = pos.get("symbol")
-                    size = float(pos.get("positionSize", 0))
-                    entry_price = float(pos.get("holdAvgPrice", 0))
-                    pos_type = "LONG (做多)" if pos.get("positionType") == 1 else "SHORT (做空)"
+                    entry_price = float(pos.get("holdAvgPrice") or pos.get("entryPrice") or pos.get("avgPrice") or 0)
                     
-                    # 計算預期的止盈止損價格
-                    if pos.get("positionType") == 1:
+                    # 多空判斷：相容數字型態與字串型態
+                    pos_type_raw = pos.get("positionType") or pos.get("side")
+                    if pos_type_raw in [1, "1", "LONG", "Long", "long"]:
+                        pos_type = "LONG (做多)"
                         calculated_tp = entry_price * (1 + tp_pct / 100)
                         calculated_sl = entry_price * (1 - sl_pct / 100)
                     else:
+                        pos_type = "SHORT (做空)"
                         calculated_tp = entry_price * (1 - tp_pct / 100)
                         calculated_sl = entry_price * (1 + sl_pct / 100)
                     
@@ -110,10 +121,6 @@ else:
                         st.markdown(f"#### 🪙 {symbol} ｜ **{pos_type}**")
                         c1, c2, c3, c4 = st.columns(4)
                         c1.metric("持倉數量", f"{size}")
-                        c2.metric("開倉均價", f"{entry_price:.4f}")
-                        c3.metric("自動止盈點", f"{calculated_tp:.4f}")
-                        c4.metric("自動止損點", f"{calculated_sl:.4f}")
-                        
-    # 💡 聰明的定時自動刷新：每 8 秒自動重整網頁更新市價與持倉，完全不耗費後台線程
-    time.sleep(8)
-    st.rerun()
+                        c2.metric("開倉均價", f"{entry_price:.4f}" if entry_price else "未知")
+                        c3.metric("自動止盈點", f"{calculated_tp:.4f}" if entry_price else "未知")
+                        c4.metric("自動止損點", f"{calculated_sl:.4f}" if entry_price else "未知")
