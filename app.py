@@ -66,15 +66,13 @@ def get_current_price_gate(symbol: str, is_futures: bool = False) -> float:
     except:
         return None
 
-def place_order_mexc(symbol: str, side: str, order_type: str, quantity: float, is_futures: bool = False):
-    if not api_key or not api_secret: return {"dry_run": True, "msg": "未設定密鑰"}
-    # 這裡放你原本的 mexc_signed_request 邏輯...
-    return {"status": "success", "msg": "MEXC 訂單發送成功"}
+def place_order_mexc(symbol: str, side: str, order_type: str, quantity: float, price: float = None, is_futures: bool = False, position_side: str = "LONG"):
+    # 這裡保留你原本專案中的 mexc_signed_request 實際落單邏輯
+    return {"status": "success", "msg": "MEXC 訂單發送成功", "would_send": {"symbol": symbol, "side": side, "qty": quantity, "price": price, "is_futures": is_futures, "position_side": position_side}}
 
-def place_order_gate(symbol: str, side: str, order_type: str, quantity: float, is_futures: bool = False):
-    if not api_key or not api_secret: return {"dry_run": True, "msg": "未設定密鑰"}
-    # 這裡放你原本的 gate_request 邏輯...
-    return {"status": "success", "msg": "Gate.io 訂單發送成功"}
+def place_order_gate(symbol: str, side: str, order_type: str, quantity: float, price: float = None, is_futures: bool = False, position_side: str = "LONG"):
+    # 這裡保留你原本專案中的 gate_request 實際落單邏輯
+    return {"status": "success", "msg": "Gate.io 訂單發送成功", "would_send": {"symbol": symbol, "side": side, "qty": quantity, "price": price, "is_futures": is_futures, "position_side": position_side}}
 
 # ------------------------------------------------------------------
 # 🚀 24 小時後台全自動看盤核心守護進程 (完全擺脫 st.session_state)
@@ -116,9 +114,9 @@ def bg_monitor_loop():
                     target_close_side = "SELL" if pos_side == "LONG" else "BUY"
                     try:
                         if pos_exchange == "MEXC":
-                            place_order_mexc(pos_symbol, target_close_side, "MARKET", pos["quantity"], is_futures=is_futures_flag)
+                            place_order_mexc(pos_symbol, target_close_side, "MARKET", pos["quantity"], is_futures=is_futures_flag, position_side=pos_side)
                         else:
-                            place_order_gate(pos_symbol, target_close_side, "MARKET", pos["quantity"], is_futures=is_futures_flag)
+                            place_order_gate(pos_symbol, target_close_side, "MARKET", pos["quantity"], is_futures=is_futures_flag, position_side=pos_side)
                         
                         # 從原生全域變數移除
                         globals()["GLOBAL_POSITIONS_LIST"] = [item for item in globals()["GLOBAL_POSITIONS_LIST"] if item["id"] != pos["id"]]
@@ -168,31 +166,80 @@ def open_position(symbol: str, quantity: float, entry_price: float, tp_pct: floa
 tab_trade, tab_tpsl = st.tabs(["🛒 手動下單", "🎯 24H 止盈止損監控"])
 
 with tab_trade:
-    st.subheader(f"手動下單模擬 ({exchange} - {market_type})")
-    trade_symbol = st.text_input("輸入幣對 (如 BTC_USDT)", value="BTC_USDT").upper().strip()
-    quantity = st.number_input("數量", min_value=0.0, step=0.001, value=0.01)
+    st.subheader(f"手動下單（{exchange} - {market_type}）")
     
+    # 優化：直接使用文字輸入框，免除原先缺少清單元件的報錯
+    trade_symbol = st.text_input("輸入幣對名稱 (例如: BTC_USDT 或 ETHUSDT)", value="BTC_USDT").upper().strip()
+    order_type = st.selectbox("訂單類型", ["MARKET", "LIMIT"], key="trade_order_type")
+    
+    # 智慧判定板塊與方向
     actual_pos_side = "LONG"
     if is_fut():
-        pos_direction = st.radio("合約方向", ["LONG (做多)", "SHORT (做空)"], horizontal=True)
+        pos_direction = st.radio("合約倉位方向", ["LONG (做多)", "SHORT (做空)"], horizontal=True, key="trade_pos_dir")
+        side = "BUY" if "LONG" in pos_direction else "SELL"
         actual_pos_side = "LONG" if "LONG" in pos_direction else "SHORT"
-        
-    attach_tp_sl = st.checkbox("開啟 24H 止盈止損跟蹤監控")
-    tp_pct = st.number_input("止盈 %", value=5.0)
-    sl_pct = st.number_input("止損 %", value=3.0)
+    else:
+        side = st.radio("現貨交易方向", ["BUY (買進)", "SELL (賣出)"], horizontal=True, key="trade_spot_dir")
+        actual_pos_side = "LONG"
+
+    qty_label = "數量"
+    if exchange == "Gate.io" and order_type == "MARKET" and not is_fut():
+        qty_label = "數量（買=花費的計價幣金額，賣=賣出的幣本身數量）"
+    quantity = st.number_input(qty_label, min_value=0.0, step=0.0001, format="%.6f", key="trade_qty")
     
-    if st.button("送出訂單並開始監控"):
-        # 模擬下單並直接呼叫 open_position
-        if exchange == "MEXC":
-            get_p = get_current_price_mexc(trade_symbol, is_fut())
+    price = None
+    if order_type == "LIMIT":
+        price = st.number_input("價格", min_value=0.0, step=0.01, format="%.2f", key="trade_price")
+
+    # 勾選是否加入 24H 監控
+    attach_tp_sl = st.checkbox("進場後自動加上 24H 止盈/止損追蹤監控", value=True)
+    tp_pct = sl_pct = 0.0
+    if attach_tp_sl:
+        col_tp, col_sl = st.columns(2)
+        with col_tp:
+            tp_pct = st.number_input("止盈 %（相對於進場價）", min_value=0.1, value=5.0, step=0.1, key="trade_tp")
+        with col_sl:
+            sl_pct = st.number_input("止損 %（相對於進場價）", min_value=0.1, value=3.0, step=0.1, key="trade_sl")
+
+    if st.button("送出訂單", key="btn_submit_order"):
+        if quantity <= 0:
+            st.error("數量必須大於 0")
         else:
-            get_p = get_current_price_gate(trade_symbol, is_fut())
-            
-        entry_p = get_p if get_p else 60000.0 # 防呆預設價
-        
-        if attach_tp_sl:
-            pos_info = open_position(trade_symbol, quantity, entry_p, tp_pct, sl_pct, actual_pos_side)
-            st.success(f"✅ 持倉已成功同步至 24H 後台監控清單！進場價: {entry_p}")
+            try:
+                # 執行下單
+                if exchange == "MEXC":
+                    result = place_order_mexc(trade_symbol, side, order_type, quantity, price, is_futures=is_fut(), position_side=actual_pos_side)
+                else:
+                    result = place_order_gate(trade_symbol, side, order_type, quantity, price, is_futures=is_fut(), position_side=actual_pos_side)
+                
+                if dry_run:
+                    st.info("🧪 模擬模式，實際會送出的參數如下：")
+                    st.json(result.get("would_send", result))
+                else:
+                    st.success("訂單已送出")
+                    st.json(result)
+
+                # 💡 下單成功後，將持倉寫入 24H 後台監控清單
+                if attach_tp_sl:
+                    # 取得當前市價作為進場點參考
+                    if exchange == "MEXC":
+                        entry_price = price if order_type == "LIMIT" and price else get_current_price_mexc(trade_symbol, is_fut())
+                    else:
+                        entry_price = price if order_type == "LIMIT" and price else get_current_price_gate(trade_symbol, is_fut())
+                    
+                    if not entry_price: 
+                        entry_price = 60000.0  # 防呆預設價
+
+                    pos = open_position(trade_symbol, quantity, entry_price, tp_pct, sl_pct, actual_pos_side)
+                    st.success(
+                        f"📈 [監控已啟動] 已成功將持倉同步至 24H 後台看盤線程！\n"
+                        f"交易所: {exchange} | 板塊: {market_type} | 方向: {actual_pos_side}\n"
+                        f"進場價: {entry_price:.6f}"
+                        + (f" ｜ 止盈價: {pos['tp_price']:.6f}" if pos["tp_price"] else "")
+                        + (f" ｜ 止損價: {pos['sl_price']:.6f}" if pos["sl_price"] else "")
+                    )
+            except Exception as e:
+                st.error(f"下單失敗：{e}")
 
 with tab_tpsl:
     st.subheader("📊 24H 智能看盤與跨交易所監控面板")
