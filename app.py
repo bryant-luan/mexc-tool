@@ -196,7 +196,7 @@ with tab_mexc:
                     pos_type_str = str(pos.get("positionType", "")).upper()
                     
                     # 💡 重新校正：只要包含 LONG、或者是 side == 1，一律正確識別為做多
-                    if "LONG" in pos_type_str or side_raw == 1:
+                    if Ture:"LONG" in pos_type_str or side_raw == 1:
                         pos_label = "🟢 LONG (做多)"
                         target_tp = entry_price * (1 + tp_pct / 100)
                         target_sl = entry_price * (1 - sl_pct / 100)
