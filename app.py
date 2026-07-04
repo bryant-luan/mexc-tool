@@ -203,7 +203,7 @@ with tab_mexc:
                         target_sl = entry_price * (1 + sl_pct / 100)
                     
                     # 漂亮的可視化區塊
-                   # 漂亮的可視化區塊
+                    # 漂亮的可視化區塊
                     with st.container(border=True):
                         col_a, col_b, col_c, col_d = st.columns(4)
                         col_a.markdown(f"### 🪙 {symbol}")
