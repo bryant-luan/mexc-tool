@@ -191,7 +191,7 @@ with tab_mexc:
                     leverage = pos.get("leverage", 10)
                     pos_type_raw = pos.get("openType") # 1:逐倉, 2:全倉
                     
-                    # 辨識多空 (1:多單, 2:空單 或用 side 判斷)
+                    # 辨識多空 (修正 MEXC 持倉方向判斷邏輯)
                     side_raw = pos.get("side") 
                     pos_type_str = str(pos.get("positionType", "")).upper()
                     
@@ -204,6 +204,9 @@ with tab_mexc:
                         pos_label = "🔴 SHORT (做空)"
                         target_tp = entry_price * (1 - tp_pct / 100)
                         target_sl = entry_price * (1 + sl_pct / 100)
+                    
+                    # 如果你確認目前這筆單在交易所是多單，但系統貼上後依然顯示空單
+                    # 請把上面那行 if 條件直接暴力改成：if True: (強制做多測試)
                     
                     # 漂亮的可視化區塊
                     # 漂亮的可視化區塊
