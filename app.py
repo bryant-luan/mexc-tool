@@ -22,8 +22,51 @@ st.sidebar.header("⚙️ 交易所設定")
 exchange = st.sidebar.selectbox("選擇交易所", ["MEXC", "Gate.io"])
 
 st.sidebar.header("🔑 API 金鑰")
-api_key = st.sidebar.text_input("API Key", type="password")
-api_secret = st.sidebar.text_input("Secret Key", type="password")
+
+
+def get_secret(key: str) -> str:
+    """從 Streamlit Secrets 讀取金鑰，沒設定就回傳空字串（不會噴錯）"""
+    try:
+        return st.secrets.get(key, "")
+    except Exception:
+        return ""
+
+
+if exchange == "MEXC":
+    remembered_key = get_secret("MEXC_API_KEY")
+    remembered_secret = get_secret("MEXC_API_SECRET")
+else:
+    remembered_key = get_secret("GATE_API_KEY")
+    remembered_secret = get_secret("GATE_API_SECRET")
+
+if remembered_key and remembered_secret:
+    st.sidebar.success("✅ 已從 Secrets 自動帶入已儲存的金鑰")
+
+api_key = st.sidebar.text_input("API Key", type="password", value=remembered_key)
+api_secret = st.sidebar.text_input("Secret Key", type="password", value=remembered_secret)
+
+with st.sidebar.expander("🧠 如何讓 App 記住金鑰（不用每次重打）"):
+    st.markdown(
+        """
+金鑰用 **Streamlit Secrets** 儲存，不會進到程式碼或 GitHub repo，其他訪客也看不到。
+
+**本機測試**：在專案資料夾建立 `.streamlit/secrets.toml`（記得加進 `.gitignore`，絕對不要上傳到 GitHub）：
+```toml
+MEXC_API_KEY = "你的 MEXC API Key"
+MEXC_API_SECRET = "你的 MEXC Secret Key"
+GATE_API_KEY = "你的 Gate.io API Key"
+GATE_API_SECRET = "你的 Gate.io Secret Key"
+```
+
+**Streamlit Community Cloud**：
+1. 進到你的 App 頁面，右下角 **⋮ → Settings → Secrets**
+2. 貼上跟上面一樣格式的內容
+3. 按 **Save**，App 會自動重啟並套用
+
+設定好之後，下次打開 App、選對交易所，金鑰欄位會自動帶入，不用再手動輸入。
+        """
+    )
+
 dry_run = st.sidebar.checkbox("模擬模式（不會真的送出訂單）", value=True)
 
 st.sidebar.markdown("---")
