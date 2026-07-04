@@ -203,6 +203,7 @@ with tab_mexc:
                         target_sl = entry_price * (1 + sl_pct / 100)
                     
                     # 漂亮的可視化區塊
+                   # 漂亮的可視化區塊
                     with st.container(border=True):
                         col_a, col_b, col_c, col_d = st.columns(4)
                         col_a.markdown(f"### 🪙 {symbol}")
@@ -214,11 +215,10 @@ with tab_mexc:
                         col_c.metric("預期止盈點 (TP)", f"${target_tp:.4f}")
                         col_c.metric("預期止損點 (SL)", f"${target_sl:.4f}")
                         
-                        # 盈虧標色
-                       pnl_color = "green" if unrealized_pnl >= 0 else "red"
+                        # 💡 這裡已經幫你精準對齊 24 個空格，直接複製即可
+                        pnl_color = "green" if unrealized_pnl >= 0 else "red"
                         col_d.markdown("##### 未實現盈虧")
                         
-                        # 修正 f-string 轉義與正確參數名 unsafe_allow_html=True
                         html_pnl = f"<h2 style='color:{pnl_color}; margin:0;'>${unrealized_pnl:+.2f}</h2>"
                         col_d.markdown(html_pnl, unsafe_allow_html=True)
                         
