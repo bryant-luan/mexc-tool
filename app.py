@@ -151,6 +151,27 @@ def tradingview_widget_html(symbol: str, interval: str = "60", theme: str = "dar
     """
 
 
+def symbol_picker(label: str, key_prefix: str, symbols: list, default: str):
+    """帶搜尋欄的幣對選擇器：先用文字篩選，再從篩選結果中選擇"""
+    search = st.text_input(
+        f"🔍 搜尋{label}", key=f"{key_prefix}_search", placeholder="輸入關鍵字，例如 BTC 或 USDT"
+    )
+    if search:
+        keyword = search.strip().upper()
+        filtered = [s for s in symbols if keyword in s]
+    else:
+        filtered = symbols
+
+    if not filtered:
+        st.warning("找不到符合的幣對，改為顯示全部清單")
+        filtered = symbols
+
+    idx = filtered.index(default) if default in filtered else 0
+    return st.selectbox(
+        f"{label}（符合 {len(filtered)} 個）", filtered, index=idx, key=f"{key_prefix}_select"
+    )
+
+
 # ------------------------------------------------------------------
 # 取得所有幣對清單
 # ------------------------------------------------------------------
@@ -174,7 +195,7 @@ with tab_tv:
     st.caption("使用 TradingView 官方公開圖表 widget，畫線工具、指標都可以在上面直接用。")
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        tv_symbol = st.selectbox("幣對", all_symbols, index=all_symbols.index(default_symbol), key="tv_symbol")
+        tv_symbol = symbol_picker("幣對", "tv", all_symbols, default_symbol)
     with col2:
         tv_interval_label = st.selectbox(
             "週期", ["1分", "5分", "15分", "1小時", "4小時", "日線"], index=3, key="tv_interval"
@@ -195,8 +216,7 @@ with tab_tv:
 with tab_chart:
     col1, col2 = st.columns([2, 1])
     with col1:
-        symbol = st.selectbox("幣對（共 %d 個）" % len(all_symbols), all_symbols,
-                               index=all_symbols.index(default_symbol), key="chart_symbol")
+        symbol = symbol_picker("幣對", "chart", all_symbols, default_symbol)
     with col2:
         interval = st.selectbox("時間", ["1m", "5m", "15m", "1h", "4h", "1d"], key="chart_interval")
 
@@ -229,7 +249,7 @@ with tab_chart:
 # ------------------------------------------------------------------
 with tab_trade:
     st.subheader("手動下單")
-    trade_symbol = st.selectbox("幣對", all_symbols, index=all_symbols.index(default_symbol), key="trade_symbol")
+    trade_symbol = symbol_picker("幣對", "trade", all_symbols, default_symbol)
     order_type = st.selectbox("訂單類型", ["MARKET", "LIMIT"])
     side = st.radio("方向", ["BUY", "SELL"], horizontal=True)
     quantity = st.number_input("數量", min_value=0.0, step=0.0001, format="%.6f")
@@ -263,7 +283,7 @@ with tab_auto:
         "若要 24 小時自動運行，建議搭配右邊「TradingView Webhook」分頁的做法。"
     )
 
-    auto_symbol = st.selectbox("幣對", all_symbols, index=all_symbols.index(default_symbol), key="auto_symbol")
+    auto_symbol = symbol_picker("幣對", "auto", all_symbols, default_symbol)
     auto_interval = st.selectbox("時間", ["1m", "5m", "15m", "1h"], key="auto_interval")
     fast_len = st.number_input("快線週期", min_value=2, max_value=200, value=9)
     slow_len = st.number_input("慢線週期", min_value=2, max_value=200, value=21)
