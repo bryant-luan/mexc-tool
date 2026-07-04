@@ -29,12 +29,14 @@ def fetch_mexc_positions(a_key, a_secret):
         return {"success": False, "msg": "未輸入 API 金鑰"}
     
     try:
-        # 1. 取得當前伺服器要求的毫秒時間戳
+        # 1. 取得毫秒時間戳
         timestamp = str(int(time.time() * 1000))
         path = "/api/v1/private/position/open_positions"
         
-        # 2. 嚴格遵循 MEXC 官方 GET 請求無參數簽章：Timestamp + ApiKey
-        sign_str = f"{timestamp}{a_key}"
+        # 2. 🔥 修正後的 MEXC 官方合約 GET 標準：ApiKey 必須在前，Timestamp 在後
+        sign_str = f"{a_key}{timestamp}"
+        
+        # 3. 使用 Hmac SHA256 加密
         signature = hmac.new(
             a_secret.encode('utf-8'), 
             sign_str.encode('utf-8'), 
