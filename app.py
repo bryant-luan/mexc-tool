@@ -33,7 +33,7 @@ def fetch_mexc_positions(a_key, a_secret):
         timestamp = str(int(time.time() * 1000))
         path = "/api/v1/private/position/open_positions"
         
-        # 2. 🔥 MEXC 官方合約 GET 標準：ApiKey 必須在前，Timestamp 在後
+        # 2. MEXC 官方合約 GET 標準：ApiKey 必須在前，Timestamp 在後
         sign_str = f"{a_key}{timestamp}"
         
         # 3. 使用 Hmac SHA256 加密
@@ -62,7 +62,7 @@ def fetch_mexc_positions(a_key, a_secret):
         return {"success": False, "msg": f"網路連線失敗: {str(e)}"}
 
 # ------------------------------------------------------------------
-# 📈 主畫面邏輯 (修正縮排與全幣種過濾)
+# 📈 主畫面邏輯 (完美對接 holdVol 欄位)
 # ------------------------------------------------------------------
 if not api_key or not api_secret:
     st.warning("👋 請在左側輸入您的 MEXC API 金鑰以載入真實合約持倉。")
@@ -84,27 +84,29 @@ else:
         else:
             positions = result["data"]
             
-            # 🔥 升級：全相容篩選機制（通殺 MEXC 各種幣別與欄位名）
+            # 🔥 修正：精準對接 MEXC 官方的 holdVol 欄位
             active_positions = []
             for p in positions:
-                # 同時嘗試抓取所有 MEXC 可能出現的持倉數量欄位
-                size = float(p.get("positionSize") or p.get("size") or p.get("vol") or p.get("openSize") or 0)
+                size = float(p.get("holdVol") or p.get("positionSize") or p.get("size") or p.get("vol") or 0)
                 if size > 0:
                     active_positions.append((p, size))
             
             if not active_positions:
                 st.info("⏳ 目前您在 MEXC 帳戶中沒有任何開倉中的合約部位。")
-                # 偵錯用：如果手動確認有持倉卻沒顯示，可以點開下面看原始結構
                 with st.expander("🛠️ 偵錯專用：查看交易所原始回傳資料"):
                     st.json(positions)
             else:
                 st.markdown(f"### 📊 當前真實持倉清單 ({len(active_positions)} 筆)")
                 
                 for pos, size in active_positions:
-                    symbol = pos.get("symbol")
-                    entry_price = float(pos.get("holdAvgPrice") or pos.get("entryPrice") or pos.get("avgPrice") or 0)
+                    # 格式化顯示名稱，把 GWEI_USDT 改成易讀的 GWEIUSDT
+                    symbol = pos.get("symbol", "").replace("_", "")
+                    entry_price = float(pos.get("holdAvgPrice") or pos.get("entryPrice") or 0)
+                    liq_price = float(pos.get("liquidatePrice") or 0)
+                    unrealized_pnl = float(pos.get("unRealizedPnl") or 0)
+                    leverage = pos.get("leverage", 10)
                     
-                    # 多空判斷：相容數字型態與字串型態
+                    # 多空判斷
                     pos_type_raw = pos.get("positionType") or pos.get("side")
                     if pos_type_raw in [1, "1", "LONG", "Long", "long"]:
                         pos_type = "LONG (做多)"
@@ -116,13 +118,17 @@ else:
                         calculated_sl = entry_price * (1 + sl_pct / 100)
                     
                     with st.container(border=True):
-                        st.markdown(f"#### 🪙 {symbol} ｜ **{pos_type}**")
-                        c1, c2, c3, c4 = st.columns(4)
-                        c1.metric("持倉數量", f"{size}")
-                        c2.metric("開倉均價", f"{entry_price:.4f}" if entry_price else "未知")
-                        c3.metric("自動止盈點", f"{calculated_tp:.4f}" if entry_price else "未知")
-                        c4.metric("自動止損點", f"{calculated_sl:.4f}" if entry_price else "未知")
+                        st.markdown(f"#### 🪙 {symbol} ｜ **{pos_type}** ｜ {leverage}X 槓桿")
                         
-    # 💡 每 8 秒自動重整網頁更新數據，完全不耗費不穩定的後台背景線程
+                        c1, c2, c3, c4 = st.columns(4)
+                        c1.metric("持倉張數 (Vol)", f"{int(size)}")
+                        c2.metric("開倉均價", f"{entry_price:.4f}")
+                        c3.metric("目標止盈點", f"{calculated_tp:.4f}")
+                        c4.metric("強平價格", f"{liq_price:.4f}")
+                        
+                        # 顯示當前這筆單的盈虧
+                        st.markdown(f"**💡 當前未實現盈虧：** `+{unrealized_pnl} USDT`" if unrealized_pnl >= 0 else f"**💡 當前未實現盈虧：** `{unrealized_pnl} USDT`")
+                        
+    # 每 8 秒自動重整網頁更新數據
     time.sleep(8)
     st.rerun()
