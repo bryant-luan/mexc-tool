@@ -88,14 +88,22 @@ def get_klines(symbol: str, interval: str, limit: int = 500):
     data = resp.json()
     if not isinstance(data, list) or len(data) == 0:
         return None
-    df = pd.DataFrame(
-        data,
-        columns=[
-            "Time", "Open", "High", "Low", "Close", "Volume",
-            "CloseTime", "Quote", "Trades", "TakerBase", "TakerQuote", "Ignore",
-        ],
+
+    # MEXC 有時回傳 8 欄、有時回傳 12 欄，先用完整欄位名稱，
+    # 再依實際筆數截取，避免欄位數量不一致造成錯誤。
+    full_columns = [
+        "Time", "Open", "High", "Low", "Close", "Volume",
+        "CloseTime", "Quote", "Trades", "TakerBase", "TakerQuote", "Ignore",
+    ]
+    n_cols = len(data[0])
+    columns = full_columns[:n_cols] if n_cols <= len(full_columns) else (
+        full_columns + [f"Extra{i}" for i in range(n_cols - len(full_columns))]
     )
-    df = df.astype(float)
+
+    df = pd.DataFrame(data, columns=columns)
+
+    numeric_cols = [c for c in ["Time", "Open", "High", "Low", "Close", "Volume", "CloseTime", "Quote"] if c in df.columns]
+    df[numeric_cols] = df[numeric_cols].astype(float)
     df["Date"] = pd.to_datetime(df["Time"], unit="ms")
     return df
 
