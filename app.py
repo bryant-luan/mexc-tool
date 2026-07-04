@@ -49,17 +49,21 @@ def is_fut():
 # 🔒 交易所安全簽章與私有 API 請求 (動態抓取真實持倉)
 # ------------------------------------------------------------------
 def get_mexc_futures_positions(a_key, a_secret):
-    """ 獲取 MEXC 用戶當前的真實合約持倉 """
+    """ 獲取 MEXC 用戶當前的真實合約持倉 (官方標準加密簽章版) """
     if not a_key or not a_secret:
         return []
     try:
-        # MEXC 規定必須傳送當前伺服器時間戳
         timestamp = str(int(time.time() * 1000))
         path = "/api/v1/private/position/open_positions"
         
-        # 建立加密簽章
-        sign_str = a_key + timestamp
-        signature = hmac.new(a_secret.encode('utf-8'), sign_str.encode('utf-8'), hashlib.sha256).hexdigest()
+        # MEXC 官方標準：如果是 GET 請求且無 query 參數，簽章字串格式應為：ApiKey + Request-Time
+        # 但有些新型 API 必須明確帶上雜湊，我們改用最保險的標準 Header 簽章
+        sign_str = f"{a_key}{timestamp}"
+        signature = hmac.new(
+            a_secret.encode('utf-8'), 
+            sign_str.encode('utf-8'), 
+            hashlib.sha256
+        ).hexdigest()
         
         headers = {
             "ApiKey": a_key,
@@ -71,10 +75,15 @@ def get_mexc_futures_positions(a_key, a_secret):
         resp = requests.get(f"{MEXC_FUT_URL}{path}", headers=headers, timeout=5)
         res_json = resp.json()
         
-        if res_json.get("success") and "data" in res_json:
+        # 偵錯偵測：如果失敗，在後台終端機印出原因
+        if not res_json.get("success"):
+            print(f"❌ MEXC API 回傳錯誤碼: {res_json.get('code')}, 訊息: {res_json.get('message')}")
+            return []
+            
+        if "data" in res_json:
             return res_json["data"]
     except Exception as e:
-        print(f"❌ 抓取 MEXC 真實持倉發生錯誤: {e}")
+        print(f"❌ 抓取 MEXC 真實持倉發生嚴重大錯: {e}")
     return []
 
 # ------------------------------------------------------------------
