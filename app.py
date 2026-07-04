@@ -22,7 +22,7 @@ tp_pct = st.sidebar.number_input("自動止盈 %", value=5.0, step=0.5)
 sl_pct = st.sidebar.number_input("自動止損 %", value=3.0, step=0.5)
 
 # ------------------------------------------------------------------
-# 🔒 官方標準安全簽章與持倉查詢 (處理時鐘與參數同步)
+# 🔒 官方標準安全簽章與持倉查詢
 # ------------------------------------------------------------------
 def fetch_mexc_positions(a_key, a_secret):
     if not a_key or not a_secret:
@@ -33,7 +33,7 @@ def fetch_mexc_positions(a_key, a_secret):
         timestamp = str(int(time.time() * 1000))
         path = "/api/v1/private/position/open_positions"
         
-        # 2. 🔥 修正後的 MEXC 官方合約 GET 標準：ApiKey 必須在前，Timestamp 在後
+        # 2. 🔥 MEXC 官方合約 GET 標準：ApiKey 必須在前，Timestamp 在後
         sign_str = f"{a_key}{timestamp}"
         
         # 3. 使用 Hmac SHA256 加密
@@ -62,7 +62,7 @@ def fetch_mexc_positions(a_key, a_secret):
         return {"success": False, "msg": f"網路連線失敗: {str(e)}"}
 
 # ------------------------------------------------------------------
-# 📈 主畫面邏輯：利用 Streamlit 原生循環，免去背景線程衝突
+# 📈 主畫面邏輯 (修正縮排與全幣種過濾)
 # ------------------------------------------------------------------
 if not api_key or not api_secret:
     st.warning("👋 請在左側輸入您的 MEXC API 金鑰以載入真實合約持倉。")
@@ -72,18 +72,16 @@ else:
     # 建立一個動態刷新的區塊
     placeholder = st.empty()
     
-    # 點擊按鈕手動觸發立即刷新
     if st.button("🔄 立即重新整理數據"):
         st.rerun()
 
-    # 直接在主線程中安全撈取，100% 不會漏掉變數
+    # 安全地向交易所撈取數據
     result = fetch_mexc_positions(api_key, api_secret)
     
     with placeholder.container():
         if not result["success"]:
             st.error(result["msg"])
         else:
-            else:
             positions = result["data"]
             
             # 🔥 升級：全相容篩選機制（通殺 MEXC 各種幣別與欄位名）
@@ -96,7 +94,7 @@ else:
             
             if not active_positions:
                 st.info("⏳ 目前您在 MEXC 帳戶中沒有任何開倉中的合約部位。")
-                # 偵錯用：如果還是空，把交易所原始回傳的 JSON 結構吐出來看
+                # 偵錯用：如果手動確認有持倉卻沒顯示，可以點開下面看原始結構
                 with st.expander("🛠️ 偵錯專用：查看交易所原始回傳資料"):
                     st.json(positions)
             else:
@@ -124,3 +122,7 @@ else:
                         c2.metric("開倉均價", f"{entry_price:.4f}" if entry_price else "未知")
                         c3.metric("自動止盈點", f"{calculated_tp:.4f}" if entry_price else "未知")
                         c4.metric("自動止損點", f"{calculated_sl:.4f}" if entry_price else "未知")
+                        
+    # 💡 每 8 秒自動重整網頁更新數據，完全不耗費不穩定的後台背景線程
+    time.sleep(8)
+    st.rerun()
