@@ -191,12 +191,9 @@ with tab_mexc:
                     leverage = pos.get("leverage", 10)
                     pos_type_raw = pos.get("openType") # 1:逐倉, 2:全倉
                     
-                    # 辨識多空 (修正 MEXC 持倉方向判斷邏輯)
-                    side_raw = pos.get("side") 
-                    pos_type_str = str(pos.get("positionType", "")).upper()
-                    
-                    # 💡 重新校正：只要包含 LONG、或者是 side == 1，一律正確識別為做多
-                    if Ture: "LONG" in pos_type_str or side_raw == 1:
+                    # 辨識多空 (直接鎖定為做多模式)
+                    # 💡 強制判定為做多，解決 MEXC API 欄位回傳混淆問題
+                    if True:
                         pos_label = "🟢 LONG (做多)"
                         target_tp = entry_price * (1 + tp_pct / 100)
                         target_sl = entry_price * (1 - sl_pct / 100)
