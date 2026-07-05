@@ -730,12 +730,17 @@ with tab_trade:
 # ------------------------------------------------------------------
 # Tab 3：簡易自動交易（SMA 交叉策略示範，含止盈止損）
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Tab 3：簡易自動交易（SMA 交叉策略示範，含止盈止損）
+# ------------------------------------------------------------------
 with tab_auto:
     st.subheader("🤖 Vedanta 自動化交易核心")
     st.markdown("`Vedanta` 專案模組已成功載入。此模組負責對資產進行波動率動態修正，防止反向套利爆倉。")
     
     auto_symbol = symbol_picker("幣對", "auto", all_symbols, default_symbol)
-    order_qty = st.number_input("自動風控下單數量", min_value=0.0, step=0.0001, key="auto_qty")
+    
+    # 💡 修正這裡：加上 value=1.0，讓預設下單數量不是 0
+    order_qty = st.number_input("自動風控下單數量", min_value=0.0, value=1.0, step=0.0001, key="auto_qty")
 
     if st.button("啟動 Vedanta 訊號掃描"):
         with st.spinner("正在計算 Vedanta 動態風險波動率..."):
@@ -747,7 +752,6 @@ with tab_auto:
             st.success("✅ 訊號掃描完成")
             st.metric(label="Vedanta 當前市場波動率評級", value=f"{mock_volatility:.2%}")
             st.info(f"依據 Vedanta 風控模型，此幣對當前最大安全下單量建議為：{max_allowed_position:.4f}")
-
 # ------------------------------------------------------------------
 # Tab 4：止盈止損監控
 # ------------------------------------------------------------------
