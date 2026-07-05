@@ -10,14 +10,13 @@ import streamlit.components.v1 as components
 import plotly.graph_objects as go
 
 # ==================================================================
-# 💡 內建資金費率大腦（直接寫在 app.py 內，免去找不到外部檔案的煩惱）
+# 💡 內建資金費率大腦
 # ==================================================================
 class LocalFundingScanner:
     def __init__(self):
         pass
 
     def get_filtered_df(self, search="", only_negative=False, threshold=None, sort_by="funding", ascending=True):
-        # 這裡提供一組基礎的模擬費率數據，確保你的畫面上能正常顯示表格
         data = [
             {"exchange": "MEXC", "symbol": "BTC_USDT", "funding": -0.0005, "status": "🟢 負費率", "next_funding": "04:00:00"},
             {"exchange": "Gate.io", "symbol": "ETH_USDT", "funding": 0.0001, "status": "🔴 正費率", "next_funding": "08:00:00"},
@@ -42,7 +41,7 @@ class LocalFundingScanner:
         return True
 
 # ==================================================================
-# 以下為原本 app.py 的核心主程式邏輯
+# 全域基礎設定與變數
 # ==================================================================
 MEXC_BASE_URL = "https://api.mexc.com"
 GATE_BASE_URL = "https://api.gateio.ws/api/v4"
@@ -50,7 +49,6 @@ GATE_BASE_URL = "https://api.gateio.ws/api/v4"
 st.set_page_config(page_title="多交易所交易工具", layout="wide")
 st.title("MEXC / Gate.io 交易工具")
 
-# 初始化剛才上面寫好的內建掃描器
 scanner = LocalFundingScanner()
 
 # ------------------------------------------------------------------
@@ -324,6 +322,28 @@ def gate_signed_request(method: str, path: str, params: dict = None, body: dict 
     elif method == "POST":
         return requests.post(url, headers=headers, data=body_string, timeout=10).json()
     return {}
+
+def get_gate_realtime_positions():
+    try:
+        resp = gate_signed_request("GET", "/spot/accounts")
+        if isinstance(resp, list):
+            active_positions = []
+            for item in resp:
+                available = float(item.get("available", 0))
+                locked = float(item.get("locked", 0))
+                total = available + locked
+                if total > 0.0001:
+                    active_positions.append({
+                        "幣種": item.get("currency"),
+                        "可用餘額": available,
+                        "凍結(掛單中)": locked,
+                        "總持倉量": total
+                    })
+            return active_positions
+        return []
+    except Exception as e:
+        st.error(f"獲取 Gate.io 持倉失敗: {str(e)}")
+        return []
 
 def get_mexc_realtime_positions():
     try:
@@ -783,6 +803,9 @@ with tab_account:
 # ------------------------------------------------------------------
 # Tab 7：專業版資金費率監控中心 (新增整合區塊)
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Tab 7：專業版資金費率監控中心 (美化自訂排版整合)
+# ------------------------------------------------------------------
 with tab_funding:
     st.subheader("💰 專業版資金費率監控中心")
     st.caption("即時整合各交易所永續合約資金費率套利與市場情緒。")
@@ -793,53 +816,41 @@ with tab_funding:
     with col2:
         only_neg = st.checkbox("☑ 僅過濾負費率（多領空機會）", value=False, key="f_neg")
         
-    df_funding = scanner.get_filtered_df(search=search_q, only_negative=only_neg)
-    
-    if df_funding.empty:
-        st.info("無任何符合當前過濾標準的合約數據。")
-    else:
-        st.dataframe(df_funding, use_container_width=True)    
-# 呼叫大腦核心邏輯取得資料
-df_funding = scanner.get_filtered_df(
-    search=search_q,
-    only_negative=only_neg,
-    threshold=threshold_val if only_neg else None,
-    sort_by="funding",
-    ascending=True
-)
+    df_funding = scanner.get_filtered_df(
+        search=search_q,
+        only_negative=only_neg,
+        threshold=None,  # 修正：移除未定義的 threshold_val
+        sort_by="funding",
+        ascending=True
+    )
 
-if df_funding.empty:
-    st.info("當前沒有符合篩選條件的資金費率資料。")
-else:
-    # 自訂表格標題
-    h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([1, 1.5, 1.2, 1.2, 2])
-    h_col1.markdown("**Exchange**")
-    h_col2.markdown("**Symbol**")
-    h_col3.markdown("**Funding Rate**")
-    h_col4.markdown("**Next Settle**")
-    h_col5.markdown("**Actions**")
-    st.divider()
-    
-    # 內容列與動態按鈕渲染
-    for idx, row in df_funding.iterrows():
-        c1, c2, c3, c4, c5 = st.columns([1, 1.5, 1.2, 1.2, 2])
+    if df_funding.empty:
+        st.info("當前沒有符合篩選條件的資金費率資料。")
+    else:
+        st.divider()
+        h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([1, 1.5, 1.5, 1.2, 2])
+        h_col1.markdown("**Exchange**")
+        h_col2.markdown("**Symbol**")
+        h_col3.markdown("**Funding Rate**")
+        h_col4.markdown("**Next Settle**")
+        h_col5.markdown("**Actions**")
+        st.divider()
         
-        c1.text(row['exchange'])
-        c2.text(row['symbol'])
-        
-        # 轉換為百分比顯示
-        rate_pct = f"{row['funding'] * 100:.3f}%"
-        c3.markdown(f"{row['status']} `{rate_pct}`")
-        
-        c4.text(row['next_funding'])
-        
-        # 操作欄按鈕控制
-        btn_col1, btn_col2 = c5.columns(2)
-        
-        if btn_col1.button("🛒 BUY", key=f"buy_{row['exchange']}_{row['symbol']}"):
-            order_request = scanner.execute_one_click_order(row['exchange'], row['symbol'], row['funding'])
-            st.success(f"已送出開倉請求至 RiskManager: {row['symbol']}")
+        # 確保下面這些渲染全部都在 with tab_funding 的縮排內！
+        for idx, row in df_funding.iterrows():
+            c1, c2, c3, c4, c5 = st.columns([1, 1.5, 1.5, 1.2, 2])
+            c1.text(row['exchange'])
+            c2.text(row['symbol'])
             
-        if btn_col2.button("⭐ Watch", key=f"watch_{row['exchange']}_{row['symbol']}"):
-            scanner.add_to_watch_list(row['symbol'])
-            st.toast(f"已將 {row['symbol']} 加入 Watch List！")
+            rate_pct = f"{row['funding'] * 100:.3f}%"
+            c3.markdown(f"{row['status']} `{rate_pct}`")
+            c4.text(row['next_funding'])
+            
+            btn_col1, btn_col2 = c5.columns(2)
+            if btn_col1.button("🛒 BUY", key=f"buy_{row['exchange']}_{row['symbol']}"):
+                order_request = scanner.execute_one_click_order(row['exchange'], row['symbol'], row['funding'])
+                st.success(f"已送出開倉請求至 RiskManager: {row['symbol']}")
+                
+            if btn_col2.button("⭐ Watch", key=f"watch_{row['exchange']}_{row['symbol']}"):
+                scanner.add_to_watch_list(row['symbol'])
+                st.toast(f"已將 {row['symbol']} 加入 Watch List！")
