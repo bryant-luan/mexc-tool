@@ -58,19 +58,16 @@ import threading
 
 import requests
 from flask import Flask, request, jsonify
-
-GATE_BASE_URL = "https://api.gateio.ws/api/v4"
-
-API_KEY = os.environ.get("GATE_API_KEY", "")
-API_SECRET = os.environ.get("GATE_API_SECRET", "")
-WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
-DRY_RUN = os.environ.get("DRY_RUN", "true").lower() == "true"
-POLL_INTERVAL_SECONDS = int(os.environ.get("POLL_INTERVAL_SECONDS", "10"))
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger("gate_tv_webhook")
-
 app = Flask(__name__)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+    print("收到持倉:", data)
+    return jsonify({"status": "received"})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
 
 # 持倉存放在記憶體中；伺服器重啟就會清空，如需重啟後還原，可自行改成寫入檔案或資料庫
 positions = []
