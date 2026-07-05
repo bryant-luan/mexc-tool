@@ -8,12 +8,17 @@ import numpy as np
 import streamlit as st
 import streamlit.components.v1 as components
 import plotly.graph_objects as go
+from exchange.funding import FundingScanner  # 引入資金費率大腦
+from streamlit_autorefresh import st_autorefresh # 引入自動刷新組件
 
 MEXC_BASE_URL = "https://api.mexc.com"
 GATE_BASE_URL = "https://api.gateio.ws/api/v4"
 
 st.set_page_config(page_title="多交易所交易工具", layout="wide")
 st.title("MEXC / Gate.io 交易工具")
+
+# 初始化 Funding 掃描器
+scanner = FundingScanner()
 
 # ------------------------------------------------------------------
 # 側邊欄：交易所 & API 金鑰設定
