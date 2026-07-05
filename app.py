@@ -435,10 +435,19 @@ for candidate in (["BTCUSDT"] if exchange == "MEXC" else ["BTC_USDT"]):
 if default_symbol is None:
     default_symbol = all_symbols[0]
 
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account = st.tabs(
-    ["📺 TradingView 圖表", "📈 K 線圖", "🛒 手動下單", "🤖 簡易自動交易",
-     "🎯 止盈止損監控", "🔗 TradingView Webhook", "💰 帳戶資訊"]
-)
+# ✅ 請改成這樣（確保變數數量與後面的標題數量完全一致）：
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_info, tab_funding = st.tabs(
+    [
+        "📺 TradingView 圖表", 
+        "📈 K 線圖", 
+        "🛒 手動下單", 
+        "🤖 簡易自動交易", 
+        "🎯 止盈止損監控",
+        "🔗 TradingView Webhook",  # 補上你原本有的
+        "💰 帳戶資訊",             # 補上你原本有的
+        "💰 Funding Rate"         # 關鍵：補上這個，最下方的 with tab_funding 就不會報錯了！
+    ]
+))
 
 # ------------------------------------------------------------------
 # Tab 0：TradingView 圖表（免費 widget 內嵌）
