@@ -434,9 +434,7 @@ for candidate in (["BTCUSDT"] if exchange == "MEXC" else ["BTC_USDT"]):
         break
 if default_symbol is None:
     default_symbol = all_symbols[0]
-
-# ✅ 請改成這樣（確保變數數量與後面的標題數量完全一致）：
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_info, tab_funding = st.tabs(
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding = st.tabs(
     [
         "📺 TradingView 圖表", 
         "📈 K 線圖", 
@@ -447,8 +445,7 @@ tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_info, tab_fun
         "💰 帳戶資訊",
         "💰 Funding Rate"
     ]
-)
-# ------------------------------------------------------------------
+)# ------------------------------------------------------------------
 # Tab 0：TradingView 圖表（免費 widget 內嵌）
 # ------------------------------------------------------------------
 with tab_tv:
