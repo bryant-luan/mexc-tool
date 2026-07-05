@@ -240,6 +240,9 @@ def get_account_info_mexc():
 # ------------------------------------------------------------------
 # Gate.io：簽名與 API 請求（APIv4，HMAC-SHA512）
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Gate.io：簽名與 API 請求（APIv4，HMAC-SHA512）
+# ------------------------------------------------------------------
 def gate_sign(method: str, url_path: str, query_string: str = "", payload_string: str = ""):
     ts = str(time.time())
     hashed_payload = hashlib.sha512((payload_string or "").encode("utf-8")).hexdigest()
@@ -270,6 +273,49 @@ def gate_request(method: str, path: str, query_params: dict = None, body: dict =
     resp.raise_for_status()
     return resp.json()
 
+# 💡 修正補齊：Gate.io 獲取現貨最新價格 (修復下單分頁崩潰)
+def get_current_price_gate(symbol: str) -> float:
+    resp = requests.get(f"{GATE_BASE_URL}/spot/tickers", params={"currency_pair": symbol}, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    if isinstance(data, list) and len(data) > 0:
+        return float(data[0].get("last", 0))
+    raise ValueError("無法獲取 Gate.io 價格數據")
+
+# 💡 修正補齊：Gate.io 獲取現貨帳戶餘額 (修復 Tab 6 餘額查詢崩潰)
+def get_account_info_gate():
+    return gate_request("GET", "/spot/accounts")
+
+
+def gate_signed_request(method: str, path: str, params: dict = None, body: dict = None):
+    if not api_key or not api_secret:
+        raise ValueError("請先在左側輸入 Gate.io 的 API Key 與 Secret Key")
+        
+    url = f"{GATE_BASE_URL}{path}"
+    query_string = ""
+    if params:
+        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        
+    body_string = json.dumps(body) if body else ""
+    timestamp = str(int(time.time()))
+    
+    # Gate.io v4 API 簽名加密邏輯
+    hashed_body = hashlib.sha512(body_string.encode('utf-8')).hexdigest()
+    sign_string = f"{method}\n{path}\n{query_string}\n{hashed_body}\n{timestamp}"
+    sign = hmac.new(api_secret.encode('utf-8'), sign_string.encode('utf-8'), hashlib.sha512).hexdigest()
+    
+    headers = {
+        "KEY": api_key,
+        "SIGN": sign,
+        "Timestamp": timestamp,
+        "Content-Type": "application/json"
+    }
+    
+    if method == "GET":
+        return requests.get(url, headers=headers, params=params, timeout=10).json()
+    elif method == "POST":
+        return requests.post(url, headers=headers, data=body_string, timeout=10).json()
+    return {}
 
 @st.cache_data(ttl=3600)
 def get_all_symbols_gate():
