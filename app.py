@@ -351,62 +351,94 @@ def gate_signed_request(method: str, path: str, params: dict = None, body: dict 
     return {}
 
 def get_gate_realtime_positions():
+    if not api_key or not api_secret:
+        return []
+    
     active_positions = []
-    # 探測路徑 A：USDT 正向合約
-    try:
-        resp = gate_signed_request("GET", "/futures/usdt/positions")
-        if isinstance(resp, list):
-            for item in resp:
-                size = float(item.get("size", 0))
-                if size != 0:
-                    active_positions.append({
-                        "合約類型": "USDT正向", "合約幣對": item.get("contract"),
-                        "持倉張數": size, "開倉均價": float(item.get("entry_price", 0)),
-                        "未實現盈虧": item.get("unrealized_pnl", 0)
-                    })
-    except Exception:
-        pass
-
-    # 探測路徑 B：BTC/USD 幣本位反向合約
-    try:
-        resp = gate_signed_request("GET", "/futures/btc/positions")
-        if isinstance(resp, list):
-            for item in resp:
-                size = float(item.get("size", 0))
-                if size != 0:
-                    active_positions.append({
-                        "合約類型": "幣本位反向", "合約幣對": item.get("contract"),
-                        "持倉張數": size, "開倉均價": float(item.get("entry_price", 0)),
-                        "未實現盈虧": item.get("unrealized_pnl", 0)
-                    })
-    except Exception:
-        pass
-
+    # 掃描 USDT 正向合約與 BTC 反向合約
+    settles = ["usdt", "btc"]
+    
+    for settle in settles:
+        try:
+            path = f"/futures/{settle}/positions"
+            method = "GET"
+            url = f"https://api.gateio.ws/api/v4{path}"
+            
+            ts = str(int(time.time()))
+            # 構造 Gate.io V4 簽名
+            hashed_payload = hashlib.sha512("".encode("utf-8")).hexdigest()
+            sign_str = f"{method}\n/api/v4{path}\n\n{hashed_payload}\n{ts}"
+            sign = hmac.new(api_secret.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha512).hexdigest()
+            
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "KEY": api_key,
+                "Timestamp": ts,
+                "SIGN": sign
+            }
+            
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code == 200:
+                res_list = resp.json()
+                if isinstance(res_list, list):
+                    for item in res_list:
+                        size = float(item.get("size", 0))
+                        if size != 0:  # Gate.io 正數為多單，負數為空單
+                            unrealized_pnl = float(item.get("unrealized_pnl", 0))
+                            active_positions.append({
+                                "合約類型": f"{settle.upper()}本位 " + ("多單" if size > 0 else "空單"),
+                                "合約幣對": item.get("contract"),
+                                "持倉大小": abs(size),
+                                "開倉均價": float(item.get("entry_price", 0)),
+                                "標記價格": float(item.get("mark_price", 0)),
+                                "未實現盈虧": f"🟢 {unrealized_pnl}" if unrealized_pnl >= 0 else f"🔴 {unrealized_pnl}"
+                            })
+        except Exception:
+            pass
+            
     return active_positions
 
 def get_mexc_realtime_positions():
+    if not api_key or not api_secret:
+        return []
     try:
-        # 改為請求 MEXC 永續合約當前持倉 API
-        # 備註: MEXC 合約簽名與現貨略有不同，若使用現貨簽名報錯，需確認 API Key 是否開啟合約權限
-        resp = mexc_signed_request("GET", "/api/v1/contract/position/open_positions")
+        # MEXC 合約 API 專用網域
+        contract_url = "https://contract.mexc.com/api/v1/private/position/open_positions"
+        timestamp = str(int(time.time() * 1000))
         
-        # MEXC 合約結構通常放在 data 欄位裡
-        positions_data = resp.get("data", []) if isinstance(resp, dict) else resp
-        active_positions = []
+        # 合約專用簽名機制：api_key + timestamp
+        sign_str = f"{api_key}{timestamp}"
+        signature = hmac.new(api_secret.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha256).hexdigest()
         
-        if isinstance(positions_data, list):
-            for item in positions_data:
-                position_size = float(item.get("holdVol", 0))
-                if position_size > 0:
-                    unrealized_pnl = float(item.get("realisedPnL", 0))
-                    active_positions.append({
-                        "合約幣對": item.get("symbol"),
-                        "持倉張數(大小)": position_size,
-                        "開倉均價": float(item.get("openPrice", 0)),
-                        "當前價格": float(item.get("fairPrice", 0)),
-                        "未實現盈虧": f"🟢 {unrealized_pnl}" if unrealized_pnl >= 0 else f"🔴 {unrealized_pnl}"
-                    })
-        return active_positions
+        headers = {
+            "ApiKey": api_key,
+            "Request-Time": timestamp,
+            "Signature": signature,
+            "Content-Type": "application/json"
+        }
+        
+        resp = requests.get(contract_url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            if res_json.get("success") and isinstance(res_json.get("data"), list):
+                active_positions = []
+                for item in res_json["data"]:
+                    # holdVol 為持倉張數
+                    size = float(item.get("holdVol", 0))
+                    if size > 0:
+                        position_type = "多單 (Long)" if item.get("positionType") == 1 else "空單 (Short)"
+                        unrealized_pnl = float(item.get("realisedPnL", 0))
+                        active_positions.append({
+                            "合約類型": position_type,
+                            "合約幣對": item.get("symbol"),
+                            "持倉量": size,
+                            "開倉均價": float(item.get("openPrice", 0)),
+                            "標記價格": float(item.get("fairPrice", 0)),
+                            "未實現盈虧": f"🟢 {unrealized_pnl}" if unrealized_pnl >= 0 else f"🔴 {unrealized_pnl}"
+                        })
+                return active_positions
+        return []
     except Exception as e:
         st.error(f"獲取 MEXC 合約持倉失敗: {str(e)}")
         return []
@@ -676,42 +708,112 @@ with tab_auto:
 # ------------------------------------------------------------------
 # 1. 止盈止損與實時持倉分頁 (已補齊 MEXC 實時持倉)
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Tab 4：止盈止損監控（真合約穿透與 Vedanta 架構整合版）
+# ------------------------------------------------------------------
 with tab_tpsl:
-    st.subheader("🎯 交易所實時持倉監控")
+    st.subheader("🎯 交易所實時合約持倉監控")
+    st.caption("本模組跳過現貨路由，直接穿透至 Gate.io (USDT/BTC本位) 與 MEXC 永續合約帳戶。")
     
     # 放一個手動刷新按鈕
-    if st.button("🔄 立即刷新持倉數據"):
-        st.cache_data.clear() # 清除緩存強制重抓
-        st.rerun()
-
-    if exchange == "Gate.io":
+    if st.button("🔄 立即刷新持倉數據", key="btn_refresh_futures"):
         if not api_key or not api_secret:
-            st.warning("🔑 請先在左側側邊欄輸入 Gate.io 的 API 金鑰以讀取實時持倉。")
+            st.warning("⚠️ 請先在左側側邊欄輸入正確的 API Key 與 Secret Key。")
         else:
-            with st.spinner("正在從 Gate.io API 獲取最新持倉狀態..."):
-                realtime_pos = get_gate_realtime_positions()
+            with st.spinner("正在向交易所主機索取實時合約倉位..."):
                 
-            if not realtime_pos:
-                st.info("ℹ️ 目前 Gate.io 帳戶內沒有任何持倉（餘額皆為 0）。")
-            else:
-                st.success(f"✅ 成功載入 {len(realtime_pos)} 筆實時資產持倉：")
-                df_pos = pd.DataFrame(realtime_pos)
-                st.dataframe(df_pos, use_container_width=True)
-                
-    elif exchange == "MEXC":
-        if not api_key or not api_secret:
-            st.warning("🔑 請先在左側側邊欄輸入 MEXC 的 API 金鑰以讀取實時持倉。")
-        else:
-            with st.spinner("正在從 MEXC API 獲取最新持倉狀態..."):
-                realtime_pos = get_mexc_realtime_positions()
-                
-            if not realtime_pos:
-                st.info("ℹ️ 目前 MEXC 帳戶內沒有任何持倉（餘額皆為 0）。")
-            else:
-                st.success(f"✅ 成功載入 {len(realtime_pos)} 筆實時資產持倉：")
-                df_pos = pd.DataFrame(realtime_pos)
-                st.dataframe(df_pos, use_container_width=True)
+                # ====================================================
+                # 1. 穿透式抓取 Gate.io 永續合約持倉 (正向 + 反向)
+                # ====================================================
+                gate_positions = []
+                for settle in ["usdt", "btc"]:
+                    try:
+                        path = f"/futures/{settle}/positions"
+                        url = f"https://api.gateio.ws/api/v4{path}"
+                        ts = str(int(time.time()))
+                        hashed_payload = hashlib.sha512("".encode("utf-8")).hexdigest()
+                        sign_str = f"GET\n/api/v4{path}\n\n{hashed_payload}\n{ts}"
+                        sign = hmac.new(api_secret.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha512).hexdigest()
+                        
+                        headers = {
+                            "Accept": "application/json", "Content-Type": "application/json",
+                            "KEY": api_key, "Timestamp": ts, "SIGN": sign
+                        }
+                        resp = requests.get(url, headers=headers, timeout=8)
+                        if resp.status_code == 200 and isinstance(resp.json(), list):
+                            for item in resp.json():
+                                size = float(item.get("size", 0))
+                                if size != 0:
+                                    upnl = float(item.get("unrealized_pnl", 0))
+                                    gate_positions.append({
+                                        "交易所": "Gate.io",
+                                        "合約類型": f"{settle.upper()}本位 " + ("多單 🟢" if size > 0 else "空單 🔴"),
+                                        "合約幣對": item.get("contract"),
+                                        "持倉張數": abs(size),
+                                        "開倉均價": float(item.get("entry_price", 0)),
+                                        "標記價格": float(item.get("mark_price", 0)),
+                                        "未實現盈虧(USDT)": f"🟢 {upnl}" if upnl >= 0 else f"🔴 {upnl}"
+                                    })
+                    except Exception:
+                        pass
 
+                # ====================================================
+                # 2. 穿透式抓取 MEXC 永續合約持倉
+                # ====================================================
+                mexc_positions = []
+                try:
+                    mexc_url = "https://contract.mexc.com/api/v1/private/position/open_positions"
+                    ts = str(int(time.time() * 1000))
+                    sign_str = f"{api_key}{ts}"
+                    signature = hmac.new(api_secret.encode("utf-8"), sign_str.encode("utf-8"), hashlib.sha256).hexdigest()
+                    
+                    headers = {
+                        "ApiKey": api_key, "Request-Time": ts, "Signature": signature,
+                        "Content-Type": "application/json"
+                    }
+                    resp = requests.get(mexc_url, headers=headers, timeout=8)
+                    if resp.status_code == 200 and resp.json().get("success"):
+                        data_list = resp.json().get("data", [])
+                        if isinstance(data_list, list):
+                            for item in data_list:
+                                size = float(item.get("holdVol", 0))
+                                if size > 0:
+                                    upnl = float(item.get("unrealized_pnl", 0))
+                                    p_type = "多單 🟢" if item.get("positionType") == 1 else "空單 🔴"
+                                    mexc_positions.append({
+                                        "交易所": "MEXC",
+                                        "合約類型": p_type,
+                                        "合約幣對": item.get("symbol"),
+                                        "持倉張數": size,
+                                        "開倉均價": float(item.get("openPrice", 0)),
+                                        "標記價格": float(item.get("fairPrice", 0)),
+                                        "未實現盈虧(USDT)": f"🟢 {upnl}" if upnl >= 0 else f"🔴 {upnl}"
+                                    })
+                except Exception:
+                    pass
+
+                # ====================================================
+                # 3. 渲染至畫面上
+                # ====================================================
+                all_positions = gate_positions + mexc_positions
+
+                if not all_positions:
+                    st.info("ℹ️ 目前在 Gate.io 或 MEXC 的合約帳戶內未偵測到任何有效的持倉（倉位大小皆為 0）。")
+                    st.caption("請確認：1. 您的 API Key 已勾選「合約/Futures」交易權限。2. 您當前不是在模擬盤（Testnet）開倉。")
+                else:
+                    st.success(f"🎉 成功偵測到 {len(all_positions)} 筆合約持倉數據！")
+                    df_pos = pd.DataFrame(all_positions)
+                    st.dataframe(df_pos, use_container_width=True)
+                    
+                    # 獨立名片卡美化渲染
+                    for pos in all_positions:
+                        with st.container():
+                            c1, c2, c3, c4 = st.columns(4)
+                            c1.metric("交易所 / 幣對", f"{pos['交易所']} - {pos['合約幣對']}")
+                            c2.metric("方向 / 持倉量", f"{pos['合約類型']}", f"{pos['持倉張數']} 張")
+                            c3.metric("均價 ➔ 現價", f"{pos['開倉均價']}", f"📊 {pos['標記價格']}")
+                            c4.metric("未實現盈虧", f"{pos['未實現盈虧(USDT)']}")
+                            st.divider()
 # ------------------------------------------------------------------
 # Tab 5：TradingView Webhook 說明
 # ------------------------------------------------------------------
