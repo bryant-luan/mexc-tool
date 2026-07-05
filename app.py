@@ -754,3 +754,65 @@ with tab_account:
                     st.info("目前沒有可用餘額，或帳戶資訊為空")
         except (requests.exceptions.RequestException, ValueError) as e:
             st.error(f"查詢失敗：{e}")
+# ------------------------------------------------------------------
+# Tab 7：專業版資金費率監控中心 (新增整合區塊)
+# ------------------------------------------------------------------
+with tab_funding:
+st.subheader("💰 專業版資金費率監控中心")
+st.caption("每 30 秒自動刷新，整合 MEXC 與 Gate.io 永續合約資金費率套利機會與市場情緒觀察。")
+# 設置 30 秒自動重新整理畫面
+st_autorefresh(interval=30000, key="funding_market_refresh")
+
+# 控制項
+col1, col2, col3 = st.columns([2, 1, 1.5])
+with col1:
+    search_q = st.text_input("🔍 搜尋合約幣對", placeholder="例如: BTC 或 USDT", key="funding_search")
+with col2:
+    only_neg = st.checkbox("☑ 只看負 Funding", value=False, key="funding_only_neg")
+with col3:
+    threshold_val = st.number_input("資金費率 ≤ (%)", value=-0.02, step=0.01, key="funding_threshold") / 100
+    
+# 呼叫大腦核心邏輯取得資料
+df_funding = scanner.get_filtered_df(
+    search=search_q,
+    only_negative=only_neg,
+    threshold=threshold_val if only_neg else None,
+    sort_by="funding",
+    ascending=True
+)
+
+if df_funding.empty:
+    st.info("當前沒有符合篩選條件的資金費率資料。")
+else:
+    # 自訂表格標題
+    h_col1, h_col2, h_col3, h_col4, h_col5 = st.columns([1, 1.5, 1.2, 1.2, 2])
+    h_col1.markdown("**Exchange**")
+    h_col2.markdown("**Symbol**")
+    h_col3.markdown("**Funding Rate**")
+    h_col4.markdown("**Next Settle**")
+    h_col5.markdown("**Actions**")
+    st.divider()
+    
+    # 內容列與動態按鈕渲染
+    for idx, row in df_funding.iterrows():
+        c1, c2, c3, c4, c5 = st.columns([1, 1.5, 1.2, 1.2, 2])
+        
+        c1.text(row['exchange'])
+        c2.text(row['symbol'])
+        
+        # 轉換為百分比顯示
+        rate_pct = f"{row['funding'] * 100:.3f}%"
+        c3.markdown(f"{row['status']} `{rate_pct}`")
+        
+        c4.text(row['next_funding'])
+        
+        # 操作欄按鈕控制
+        btn_col1, btn_col2 = c5.columns(2)
+        
+        if btn_col1.button("🛒 BUY", key=f"buy_{row['exchange']}_{row['symbol']}"):
+            order_request = scanner.execute_one_click_order(row['exchange'], row['symbol'], row['funding'])
+            st.success(f"已送出開倉請求至 RiskManager: {row['symbol']}")
+            
+        if btn_col2.button("⭐ Watch", key=f"watch_{row['exchange']}_{row['symbol']}"):
+            scanner.add_to_watch_list(row['symbol'])
+            st.toast(f"已將 {row['symbol']} 加入 Watch List！")
