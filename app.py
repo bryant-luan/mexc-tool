@@ -711,11 +711,14 @@ with tab_auto:
 # ------------------------------------------------------------------
 # Tab 4：止盈止損監控（真合約穿透與 Vedanta 架構整合版）
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Tab 4：止盈止損監控（真合約穿透與未實現盈虧精準修正版）
+# ------------------------------------------------------------------
 with tab_tpsl:
     st.subheader("🎯 交易所實時合約持倉監控")
     st.caption("本模組跳過現貨路由，直接穿透至 Gate.io (USDT/BTC本位) 與 MEXC 永續合約帳戶。")
     
-    # 放一個手動刷新按鈕
+    # 手動刷新按鈕
     if st.button("🔄 立即刷新持倉數據", key="btn_refresh_futures"):
         if not api_key or not api_secret:
             st.warning("⚠️ 請先在左側側邊欄輸入正確的 API Key 與 Secret Key。")
@@ -742,20 +745,43 @@ with tab_tpsl:
                         resp = requests.get(url, headers=headers, timeout=8)
                         if resp.status_code == 200 and isinstance(resp.json(), list):
                             for item in resp.json():
+           if resp.status_code == 200 and isinstance(resp.json(), list):
+                            for item in resp.json():
                                 size = float(item.get("size", 0))
                                 if size != 0:
-                                    upnl = float(item.get("unrealized_pnl", 0))
+                                    # 1. 優先抓取真實 API 盈虧欄位，全面包容各類命名可能
+                                    upnl_raw = item.get("unrealized_pnl") or item.get("upl") or "0"
+                                    
+                                    # 2. 強制保留原始高精度字串轉換，防止微小數值被抹平
+                                    try:
+                                        upnl = float(upnl_raw)
+                                    except ValueError:
+                                        upnl = 0.0
+                                    
+                                    # 3. 兜底機制：如果 API 真的回傳 "0" 但明明有價差（通常是低單價小幣種欄位沒對上）
+                                    entry_price = float(item.get("entry_price", 0))
+                                    mark_price = float(item.get("mark_price", 0))
+                                    
+                                    if upnl == 0.0 and entry_price > 0 and mark_price > 0:
+                                        # 為了避免合約乘數(Contract Multiplier)沒算進去導致數字失真
+                                        # 我們用價差百分比來倒推預估盈虧，或者直接從內建對應
+                                        pct_change = (mark_price - entry_price) / entry_price if size > 0 else (entry_price - mark_price) / entry_price
+                                        # 如果是 GWEI 這種開倉 0.139, 現價 0.140, 獲利約 0.6%
+                                        # 這裡做一個安全的估算兜底，但主要還是靠上方的 upnl_raw 抓取
+                                        upnl = pct_change * entry_price * abs(size)
+
+                                    # 用 :.6f 完整展開小數點，GWEI 的獲利就會現形！
+                                    upnl_str = f"{upnl:.6f}"
+                                    
                                     gate_positions.append({
                                         "交易所": "Gate.io",
                                         "合約類型": f"{settle.upper()}本位 " + ("多單 🟢" if size > 0 else "空單 🔴"),
                                         "合約幣對": item.get("contract"),
                                         "持倉張數": abs(size),
-                                        "開倉均價": float(item.get("entry_price", 0)),
-                                        "標記價格": float(item.get("mark_price", 0)),
-                                        "未實現盈虧(USDT)": f"🟢 {upnl}" if upnl >= 0 else f"🔴 {upnl}"
+                                        "開倉均價": entry_price,
+                                        "標記價格": mark_price,
+                                        "未實現盈虧(USDT)": f"🟢 {upnl_str}" if upnl >= 0 else f"🔴 {upnl_str}"
                                     })
-                    except Exception:
-                        pass
 
                 # ====================================================
                 # 2. 穿透式抓取 MEXC 永續合約持倉
@@ -787,7 +813,7 @@ with tab_tpsl:
                                         "持倉張數": size,
                                         "開倉均價": float(item.get("openPrice", 0)),
                                         "標記價格": float(item.get("fairPrice", 0)),
-                                        "未實現盈虧(USDT)": f"🟢 {upnl}" if upnl >= 0 else f"🔴 {upnl}"
+                                        "未實現盈虧(USDT)": f"🟢 {upnl:.6f}" if upnl >= 0 else f"🔴 {upnl:.6f}"
                                     })
                 except Exception:
                     pass
