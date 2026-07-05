@@ -295,18 +295,60 @@ def place_order_gate(symbol: str, side: str, order_type: str, quantity: float, p
     return gate_request("POST", "/spot/orders", body=body)
 
 
-def get_current_price_gate(symbol: str) -> float:
-    resp = requests.get(f"{GATE_BASE_URL}/spot/tickers", params={"currency_pair": symbol}, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-    if not data:
-        raise ValueError("查無此幣對報價")
-    return float(data[0]["last"])
+def gate_signed_request(method: str, path: str, params: dict = None, body: dict = None):
+    if not api_key or not api_secret:
+        raise ValueError("請先在左側輸入 Gate.io 的 API Key 與 Secret Key")
+        
+    url = f"{GATE_BASE_URL}{path}"
+    query_string = ""
+    if params:
+        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+        
+    body_string = json.dumps(body) if body else ""
+    timestamp = str(int(time.time()))
+    
+    # Gate.io v4 API 簽名加密邏輯
+    hashed_body = hashlib.sha512(body_string.encode('utf-8')).hexdigest()
+    sign_string = f"{method}\n{path}\n{query_string}\n{hashed_body}\n{timestamp}"
+    sign = hmac.new(api_secret.encode('utf-8'), sign_string.encode('utf-8'), hashlib.sha512).hexdigest()
+    
+    headers = {
+        "KEY": api_key,
+        "SIGN": sign,
+        "Timestamp": timestamp,
+        "Content-Type": "application/json"
+    }
+    
+    if method == "GET":
+        return requests.get(url, headers=headers, params=params, timeout=10).json()
+    elif method == "POST":
+        return requests.post(url, headers=headers, data=body_string, timeout=10).json()
+    return {}
 
-
-def get_account_info_gate():
-    return gate_request("GET", "/spot/accounts")
-
+def get_mexc_realtime_positions():
+    try:
+        # 呼叫現貨帳戶資訊 API 節點
+        resp = mexc_signed_request("GET", "/api/v3/account")
+        
+        # MEXC 回傳的結構中，資產放在 "balances" 列表裡
+        balances = resp.get("balances", [])
+        
+        active_positions = []
+        for item in balances:
+            free = float(item.get("free", 0))
+            locked = float(item.get("locked", 0))
+            total = free + locked
+            if total > 0.0001:  # 微量持倉忽略
+                active_positions.append({
+                    "幣種": item.get("asset"),
+                    "可用餘額": free,
+                    "凍結(掛單中)": locked,
+                    "總持倉量": total
+                })
+        return active_positions
+    except Exception as e:
+        st.error(f"獲取 MEXC 持倉失敗: {str(e)}")
+        return []
 
 # ------------------------------------------------------------------
 # 依目前選擇的交易所分派到對應函式
@@ -635,65 +677,44 @@ with tab_auto:
 # ------------------------------------------------------------------
 # Tab 4：止盈止損監控
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# 1. 止盈止損與實時持倉分頁 (已補齊 MEXC 實時持倉)
+# ------------------------------------------------------------------
 with tab_tpsl:
-    st.subheader("止盈止損監控")
-    st.caption(
-        "這裡列出的持倉只存在於這次瀏覽器工作階段（重新整理網頁、App 重啟都會清空）。\n"
-        "Streamlit 沒有背景常駐機制，所以出場需要你手動按按鈕檢查；"
-        "若要 24 小時全自動看盤出場，請改用 webhook_server.py 常駐監控（見下方 Webhook 分頁）。"
-    )
+    st.subheader("🎯 交易所實時持倉監控")
+    
+    # 放一個手動刷新按鈕
+    if st.button("🔄 立即刷新持倉數據"):
+        st.cache_data.clear() # 清除緩存強制重抓
+        st.rerun()
 
-    positions = [p for p in st.session_state["positions"] if p["exchange"] == exchange]
-
-    if not positions:
-        st.info(f"目前 {exchange} 沒有追蹤中的持倉")
-    else:
-        for pos in positions:
-            with st.container(border=True):
-                st.markdown(f"**{pos['symbol']}**　數量：{pos['quantity']}　建立時間：{pos['opened_at']}")
-                try:
-                    current_price = get_current_price(pos["symbol"])
-                except (requests.exceptions.RequestException, ValueError):
-                    current_price = None
-
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("進場價", f"{pos['entry_price']:.6f}")
-                c2.metric("止盈價", f"{pos['tp_price']:.6f}" if pos["tp_price"] else "未設定")
-                c3.metric("止損價", f"{pos['sl_price']:.6f}" if pos["sl_price"] else "未設定")
-                if current_price is not None:
-                    pnl_pct = (current_price - pos["entry_price"]) / pos["entry_price"] * 100
-                    c4.metric("目前價 / 損益", f"{current_price:.6f}（{pnl_pct:+.2f}%）")
-                else:
-                    c4.metric("目前價", "查詢失敗")
-
-                triggered = None
-                if current_price is not None:
-                    if pos["tp_price"] and current_price >= pos["tp_price"]:
-                        triggered = "止盈"
-                    elif pos["sl_price"] and current_price <= pos["sl_price"]:
-                        triggered = "止損"
-
-                btn1, btn2 = st.columns(2)
-                with btn1:
-                    if triggered:
-                        st.warning(f"已觸及{triggered}條件！")
-                        if st.button(f"執行{triggered}出場", key=f"auto_close_{pos['id']}"):
-                            try:
-                                result = close_position(pos, triggered)
-                                st.success(f"{triggered}出場完成")
-                                st.json(result)
-                                st.rerun()
-                            except (requests.exceptions.RequestException, ValueError) as e:
-                                st.error(f"出場失敗：{e}")
-                with btn2:
-                    if st.button("手動平倉", key=f"manual_close_{pos['id']}"):
-                        try:
-                            result = close_position(pos, "手動")
-                            st.success("已手動平倉")
-                            st.json(result)
-                            st.rerun()
-                        except (requests.exceptions.RequestException, ValueError) as e:
-                            st.error(f"平倉失敗：{e}")
+    if exchange == "Gate.io":
+        if not api_key or not api_secret:
+            st.warning("🔑 請先在左側側邊欄輸入 Gate.io 的 API 金鑰以讀取實時持倉。")
+        else:
+            with st.spinner("正在從 Gate.io API 獲取最新持倉狀態..."):
+                realtime_pos = get_gate_realtime_positions()
+                
+            if not realtime_pos:
+                st.info("ℹ️ 目前 Gate.io 帳戶內沒有任何持倉（餘額皆為 0）。")
+            else:
+                st.success(f"✅ 成功載入 {len(realtime_pos)} 筆實時資產持倉：")
+                df_pos = pd.DataFrame(realtime_pos)
+                st.dataframe(df_pos, use_container_width=True)
+                
+    elif exchange == "MEXC":
+        if not api_key or not api_secret:
+            st.warning("🔑 請先在左側側邊欄輸入 MEXC 的 API 金鑰以讀取實時持倉。")
+        else:
+            with st.spinner("正在從 MEXC API 獲取最新持倉狀態..."):
+                realtime_pos = get_mexc_realtime_positions()
+                
+            if not realtime_pos:
+                st.info("ℹ️ 目前 MEXC 帳戶內沒有任何持倉（餘額皆為 0）。")
+            else:
+                st.success(f"✅ 成功載入 {len(realtime_pos)} 筆實時資產持倉：")
+                df_pos = pd.DataFrame(realtime_pos)
+                st.dataframe(df_pos, use_container_width=True)
 
 # ------------------------------------------------------------------
 # Tab 5：TradingView Webhook 說明
