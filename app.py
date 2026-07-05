@@ -728,6 +728,9 @@ with tab_tpsl:
                 # ====================================================
                 # 1. 穿透式抓取 Gate.io 永續合約持倉 (正向 + 反向)
                 # ====================================================
+                # ====================================================
+                # 1. 穿透式抓取 Gate.io 永續合約持倉 (正向 + 反向)
+                # ====================================================
                 gate_positions = []
                 for settle in ["usdt", "btc"]:
                     try:
@@ -743,34 +746,30 @@ with tab_tpsl:
                             "KEY": api_key, "Timestamp": ts, "SIGN": sign
                         }
                         resp = requests.get(url, headers=headers, timeout=8)
+                        
+                        # 這裡開始是修正縮排後的解析邏輯
                         if resp.status_code == 200 and isinstance(resp.json(), list):
-                            for item in resp.json():
-           if resp.status_code == 200 and isinstance(resp.json(), list):
                             for item in resp.json():
                                 size = float(item.get("size", 0))
                                 if size != 0:
-                                    # 1. 優先抓取真實 API 盈虧欄位，全面包容各類命名可能
+                                    # 1. 優先抓取真實 API 盈虧欄位
                                     upnl_raw = item.get("unrealized_pnl") or item.get("upl") or "0"
                                     
-                                    # 2. 強制保留原始高精度字串轉換，防止微小數值被抹平
+                                    # 2. 強制保留原始高精度字串轉換
                                     try:
                                         upnl = float(upnl_raw)
                                     except ValueError:
                                         upnl = 0.0
                                     
-                                    # 3. 兜底機制：如果 API 真的回傳 "0" 但明明有價差（通常是低單價小幣種欄位沒對上）
                                     entry_price = float(item.get("entry_price", 0))
                                     mark_price = float(item.get("mark_price", 0))
                                     
+                                    # 3. 兜底機制：如果 API 真的回傳 "0" 但明明有價差
                                     if upnl == 0.0 and entry_price > 0 and mark_price > 0:
-                                        # 為了避免合約乘數(Contract Multiplier)沒算進去導致數字失真
-                                        # 我們用價差百分比來倒推預估盈虧，或者直接從內建對應
                                         pct_change = (mark_price - entry_price) / entry_price if size > 0 else (entry_price - mark_price) / entry_price
-                                        # 如果是 GWEI 這種開倉 0.139, 現價 0.140, 獲利約 0.6%
-                                        # 這裡做一個安全的估算兜底，但主要還是靠上方的 upnl_raw 抓取
                                         upnl = pct_change * entry_price * abs(size)
 
-                                    # 用 :.6f 完整展開小數點，GWEI 的獲利就會現形！
+                                    # 用 :.6f 完整展開小數點
                                     upnl_str = f"{upnl:.6f}"
                                     
                                     gate_positions.append({
@@ -782,7 +781,9 @@ with tab_tpsl:
                                         "標記價格": mark_price,
                                         "未實現盈虧(USDT)": f"🟢 {upnl_str}" if upnl >= 0 else f"🔴 {upnl_str}"
                                     })
-
+                    except Exception as e:
+                        # 可以在背景列印錯誤日誌方便排查，不影響前端運行
+                        print(f"Gate.io fetch error: {e}")
                 # ====================================================
                 # 2. 穿透式抓取 MEXC 永續合約持倉
                 # ====================================================
