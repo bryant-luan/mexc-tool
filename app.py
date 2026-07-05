@@ -758,24 +758,21 @@ with tab_account:
 # Tab 7：專業版資金費率監控中心 (新增整合區塊)
 # ------------------------------------------------------------------
 with tab_funding:
-st.subheader("💰 專業版資金費率監控中心")
-st.caption("每 30 秒自動刷新，整合 MEXC 與 Gate.io 永續合約資金費率套利機會與市場情緒觀察。")
-# 設置 30 秒自動重新整理畫面
-st_autorefresh(interval=30000, key="funding_market_refresh")
-
-# 控制項
-col1, col2 = st.columns([2, 1])
-with col1:
-    search_q = st.text_input("🔍 篩選特定合約標的", placeholder="輸入代幣關鍵字，如 BTC / ETH", key="f_search")
-with col2:
-    only_neg = st.checkbox("☑ 僅過濾負費率（多領空機會）", value=False, key="f_neg")
+    st.subheader("💰 專業版資金費率監控中心")
+    st.caption("即時整合各交易所永續合約資金費率套利與市場情緒。")
     
-df_funding = scanner.get_filtered_df(search=search_q, only_negative=only_neg)
-
-if df_funding.empty:
-    st.info("無任何符合當前過濾標準的合約數據。")
-else:
-    st.dataframe(df_funding, use_container_width=True)    
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        search_q = st.text_input("🔍 篩選特定合約標的", placeholder="輸入代幣關鍵字，如 BTC / ETH", key="f_search")
+    with col2:
+        only_neg = st.checkbox("☑ 僅過濾負費率（多領空機會）", value=False, key="f_neg")
+        
+    df_funding = scanner.get_filtered_df(search=search_q, only_negative=only_neg)
+    
+    if df_funding.empty:
+        st.info("無任何符合當前過濾標準的合約數據。")
+    else:
+        st.dataframe(df_funding, use_container_width=True)    
 # 呼叫大腦核心邏輯取得資料
 df_funding = scanner.get_filtered_df(
     search=search_q,
