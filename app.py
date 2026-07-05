@@ -714,22 +714,43 @@ with tab_auto:
 # ------------------------------------------------------------------
 # Tab 4：止盈止損監控（真合約穿透與未實現盈虧精準修正版）
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Tab 4：止盈止損監控（含強平價格提醒與推薦套利幣種偵測版）
+# ------------------------------------------------------------------
 with tab_tpsl:
-    st.subheader("🎯 交易所實時合約持倉監控")
-    st.caption("本模組跳過現貨路由，直接穿透至 Gate.io (USDT/BTC本位) 與 MEXC 永續合約帳戶。")
+    st.subheader("🎯 交易所實時合約持倉與風控中心")
+    st.caption("本模組直接穿透至 Gate.io (USDT/BTC本位) 與 MEXC 永續合約帳戶，提供實時強平風險監控。")
+    
+    # ====================================================
+    # 💡 功能一：推薦偵測下單幣種 (自動過濾當前最肥的負費率標的)
+    # ====================================================
+    st.markdown("### 🔍 Vedanta 推薦偵測套利幣種")
+    try:
+        # 調用你原有的 LocalFundingScanner
+        df_recommend = scanner.get_filtered_df(only_negative=True, sort_by="funding", ascending=True)
+        if not df_recommend.empty:
+            top_picks = df_recommend.head(3)  # 挑選負費率最高的前 3 名
+            cols_rec = st.columns(len(top_picks))
+            for idx, (_, row) in enumerate(top_picks.iterrows()):
+                with cols_rec[idx]:
+                    st.info(f"💎 **{row['exchange']}**: `{row['symbol']}`\n\n費率：`{row['funding']*100:.4f}%` (空頭領多頭補貼)")
+        else:
+            st.caption("ℹ️ 當前市場暫無顯著的負費率套利幣種推薦。")
+    except Exception:
+        st.caption("⚠️ 推薦套利幣種大腦加載中...")
+
+    st.divider()
+    st.markdown("### 📊 當前實時合約持倉狀態")
     
     # 手動刷新按鈕
-    if st.button("🔄 立即刷新持倉數據", key="btn_refresh_futures"):
+    if st.button("🔄 立即刷新持倉與風險數據", key="btn_refresh_futures"):
         if not api_key or not api_secret:
             st.warning("⚠️ 請先在左側側邊欄輸入正確的 API Key 與 Secret Key。")
         else:
-            with st.spinner("正在向交易所主機索取實時合約倉位..."):
+            with st.spinner("正在向交易所主機索取實時合約與強平數據..."):
                 
                 # ====================================================
-                # 1. 穿透式抓取 Gate.io 永續合約持倉 (正向 + 反向)
-                # ====================================================
-                # ====================================================
-                # 1. 穿透式抓取 Gate.io 永續合約持倉 (正向 + 反向)
+                # 2. 穿透式抓取 Gate.io 永續合約持倉 (含強平價格)
                 # ====================================================
                 gate_positions = []
                 for settle in ["usdt", "btc"]:
@@ -747,15 +768,12 @@ with tab_tpsl:
                         }
                         resp = requests.get(url, headers=headers, timeout=8)
                         
-                        # 這裡開始是修正縮排後的解析邏輯
                         if resp.status_code == 200 and isinstance(resp.json(), list):
                             for item in resp.json():
                                 size = float(item.get("size", 0))
                                 if size != 0:
-                                    # 1. 優先抓取真實 API 盈虧欄位
+                                    # 解析未實現盈虧
                                     upnl_raw = item.get("unrealized_pnl") or item.get("upl") or "0"
-                                    
-                                    # 2. 強制保留原始高精度字串轉換
                                     try:
                                         upnl = float(upnl_raw)
                                     except ValueError:
@@ -764,14 +782,21 @@ with tab_tpsl:
                                     entry_price = float(item.get("entry_price", 0))
                                     mark_price = float(item.get("mark_price", 0))
                                     
-                                    # 3. 兜底機制：如果 API 真的回傳 "0" 但明明有價差
+                                    # 💡 讀取 Gate.io 的強平價格 (liq_price)
+                                    liq_price = float(item.get("liq_price", 0))
+                                    
+                                    # 兜底計算未實現盈虧
                                     if upnl == 0.0 and entry_price > 0 and mark_price > 0:
                                         pct_change = (mark_price - entry_price) / entry_price if size > 0 else (entry_price - mark_price) / entry_price
                                         upnl = pct_change * entry_price * abs(size)
 
-                                    # 用 :.6f 完整展開小數點
-                                    upnl_str = f"{upnl:.6f}"
+                                    upnl_str = f"{upnl:.4f}"
                                     
+                                    # 計算距離強平價格的風險比例
+                                    liq_risk_pct = 0.0
+                                    if liq_price > 0 and mark_price > 0:
+                                        liq_risk_pct = abs(mark_price - liq_price) / mark_price * 100
+
                                     gate_positions.append({
                                         "交易所": "Gate.io",
                                         "合約類型": f"{settle.upper()}本位 " + ("多單 🟢" if size > 0 else "空單 🔴"),
@@ -779,13 +804,15 @@ with tab_tpsl:
                                         "持倉張數": abs(size),
                                         "開倉均價": entry_price,
                                         "標記價格": mark_price,
+                                        "強平價格 ⚠️": liq_price,
+                                        "距離強平距離": f"{liq_risk_pct:.2f}%",
                                         "未實現盈虧(USDT)": f"🟢 {upnl_str}" if upnl >= 0 else f"🔴 {upnl_str}"
                                     })
-                    except Exception as e:
-                        # 可以在背景列印錯誤日誌方便排查，不影響前端運行
-                        print(f"Gate.io fetch error: {e}")
+                    except Exception:
+                        pass
+
                 # ====================================================
-                # 2. 穿透式抓取 MEXC 永續合約持倉
+                # 3. 穿透式抓取 MEXC 永續合約持倉 (含強平價格)
                 # ====================================================
                 mexc_positions = []
                 try:
@@ -807,38 +834,67 @@ with tab_tpsl:
                                 if size > 0:
                                     upnl = float(item.get("unrealized_pnl", 0))
                                     p_type = "多單 🟢" if item.get("positionType") == 1 else "空單 🔴"
+                                    
+                                    entry_price = float(item.get("openPrice", 0))
+                                    mark_price = float(item.get("fairPrice", 0))
+                                    
+                                    # 💡 讀取 MEXC 的強平價格 (liquidatePrice)
+                                    liq_price = float(item.get("liquidatePrice", 0))
+                                    
+                                    liq_risk_pct = 0.0
+                                    if liq_price > 0 and mark_price > 0:
+                                        liq_risk_pct = abs(mark_price - liq_price) / mark_price * 100
+
                                     mexc_positions.append({
                                         "交易所": "MEXC",
                                         "合約類型": p_type,
                                         "合約幣對": item.get("symbol"),
                                         "持倉張數": size,
-                                        "開倉均價": float(item.get("openPrice", 0)),
-                                        "標記價格": float(item.get("fairPrice", 0)),
-                                        "未實現盈虧(USDT)": f"🟢 {upnl:.6f}" if upnl >= 0 else f"🔴 {upnl:.6f}"
+                                        "開倉均價": entry_price,
+                                        "標記價格": mark_price,
+                                        "強平價格 ⚠️": liq_price,
+                                        "距離強平距離": f"{liq_risk_pct:.2f}%",
+                                        "未實現盈虧(USDT)": f"🟢 {upnl:.4f}" if upnl >= 0 else f"🔴 {upnl:.4f}"
                                     })
                 except Exception:
                     pass
 
                 # ====================================================
-                # 3. 渲染至畫面上
+                # 4. 數據整合與動態強平警報渲染
                 # ====================================================
                 all_positions = gate_positions + mexc_positions
 
                 if not all_positions:
                     st.info("ℹ️ 目前在 Gate.io 或 MEXC 的合約帳戶內未偵測到任何有效的持倉（倉位大小皆為 0）。")
-                    st.caption("請確認：1. 您的 API Key 已勾選「合約/Futures」交易權限。2. 您當前不是在模擬盤（Testnet）開倉。")
                 else:
                     st.success(f"🎉 成功偵測到 {len(all_positions)} 筆合約持倉數據！")
+                    
+                    # 輸出總表
                     df_pos = pd.DataFrame(all_positions)
                     st.dataframe(df_pos, use_container_width=True)
                     
-                    # 獨立名片卡美化渲染
+                    # 獨立風控名片卡渲染 + 強平價格高危提醒
                     for pos in all_positions:
+                        # 提取距離強平的浮點數百分比
+                        try:
+                            risk_val = float(pos["距離強平距離"].replace("%", ""))
+                        except ValueError:
+                            risk_val = 100.0
+                            
                         with st.container():
+                            # 🚨 強平高危警報：如果當前標記價格距離強平價格小於 10% 觸發紅色警告
+                            if pos["強平價格 ⚠️"] > 0 and risk_val <= 10.0:
+                                st.error(f"🚨 **💥 強平危機警告**：{pos['交易所']} 的 `{pos['合約幣對']}` 距離強平價格僅剩 **{pos['距離強平距離']}**！請立即補倉或平倉！")
+                            elif pos["強平價格 ⚠️"] > 0 and risk_val <= 25.0:
+                                st.warning(f"⚠️ **風險提示**：{pos['交易所']} 的 `{pos['合約幣對']}` 距離強平價格較近 ({pos['距離強平距離']})，請密切關注波動。")
+                            
                             c1, c2, c3, c4 = st.columns(4)
                             c1.metric("交易所 / 幣對", f"{pos['交易所']} - {pos['合約幣對']}")
                             c2.metric("方向 / 持倉量", f"{pos['合約類型']}", f"{pos['持倉張數']} 張")
-                            c3.metric("均價 ➔ 現價", f"{pos['開倉均價']}", f"📊 {pos['標記價格']}")
+                            
+                            # 如果強平價為 0 代表是逐倉且保證金極度充足，或全倉暫無強平風險
+                            liq_display = f"{pos['強平價格 ⚠️']:.4f}" if pos["強平價格 ⚠️"] > 0 else "無強平風險 (或未觸發)"
+                            c3.metric("強平價格 / 距離", liq_display, f"安全邊際: {pos['距離強平距離']}", delta_color="inverse")
                             c4.metric("未實現盈虧", f"{pos['未實現盈虧(USDT)']}")
                             st.divider()
 # ------------------------------------------------------------------
