@@ -807,21 +807,22 @@ with tab_positions:
 # ------------------------------------------------------------------
 # Tab 6：資金費率
 # ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# Tab 6：資金費率 (請複製並取代您的最後一段程式碼)
+# ------------------------------------------------------------------
 with tab_funding:
     st.subheader("💰 資金費率掃描（Gate.io + MEXC 永續合約）")
-    st.caption("負費率代表空方要付錢給多方；正費率則反過來。快取 60 秒，避免每次互動都重打 API。")
-
-    # 接續您的 tab_funding 分頁最後
+    
     df_funding = get_funding_rates()
+    
     if not df_funding.empty:
-        # 將負費率標記顏色
-    if not df_funding.empty:
-
+        # 下面這一整段必須比上面多縮排 4 個空格 (共 8 個空格)
         st.dataframe(df_funding.style.map(
             lambda x: 'color: green' if isinstance(x, float) and x < 0 else 'color: red',
             subset=['資金費率']
         ), use_container_width=True)
     else:
+        # 下面這一整段同樣要縮排
         st.info("目前無法讀取資金費率資料。")
 # ------------------------------------------------------------------
 # Tab 7：TradingView Webhook 說明
