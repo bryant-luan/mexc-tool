@@ -614,17 +614,13 @@ for candidate in (["BTCUSDT"] if exchange == "MEXC" else ["BTC_USDT"]):
         break
 if default_symbol is None:
     default_symbol = all_symbols[0]
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding = st.tabs(
-    [
-        "📺 TradingView 圖表", 
-        "📈 K 線圖", 
-        "🛒 手動下單", 
-        "🤖 簡易自動交易", 
-        "🎯 止盈止損監控",
-        "🔗 TradingView Webhook",
-        "💰 帳戶資訊",
-        "💰 Funding Rate"
-    ]
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(
+   # 找到原本的定義並改為這樣：
+tabs_list = [
+    "📺 TradingView", "📈 K 線", "🛒 下單", "🤖 自動", 
+    "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
+]
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
 )# ------------------------------------------------------------------
 # Tab 0：TradingView 圖表（免費 widget 內嵌）
 # ------------------------------------------------------------------
@@ -1065,3 +1061,18 @@ with tab_funding:
             if btn_col2.button("⭐ Watch", key=f"watch_{row['exchange']}_{row['symbol']}"):
                 scanner.add_to_watch_list(row['symbol'])
                 st.toast(f"已將 {row['symbol']} 加入 Watch List！")
+# ------------------------------------------------------------------
+# 新增 Tab 8：PanWatch 監控中心
+# ------------------------------------------------------------------
+# ------------------------------------------------------------------
+# 新增 Tab 8：PanWatch 監控中心
+tab_panwatch = st.tabs(["📺 TV", "📈 K線", "🛒 下單", "🤖 自動", "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"])
+# ... (這裡需要根據你原先 st.tabs 的順序調整) ...
+
+with tab_panwatch:
+    st.subheader("👀 PanWatch 鏈上監控")
+    if st.button("啟動鏈上掃描"):
+        with st.spinner("正在同步 PanWatch 數據..."):
+            # 呼叫 PanWatch 的邏輯
+            data = pan_scanner.get_latest_alerts()
+            st.dataframe(data)
