@@ -607,11 +607,18 @@ tabs_names = [
 
 # 一次性定義 9 個變數
 (tab_tv, tab_chart, tab_trade, tab_auto, 
- tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch) = st.tabs(tabs_names)
+ tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch) = 
 
 # ------------------------------------------------------------------
 # 2. 各分頁內容 (確保每個 with 區塊都與上面的定義對齊)
 # ------------------------------------------------------------------
+# [1] 這是全檔案中唯一的一次定義，別的地方絕對不能再寫 st.tabs
+tabs_list = [
+    "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
+    "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
+]
+
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
 with tab_tv:
     st.write("TradingView 監控區")
     # 你的原程式碼...
@@ -625,7 +632,7 @@ with tab_chart:
 with tab_funding:
     st.subheader("💰 資金費率監控")
     # 這是你原本那段複雜的循環，請確保這一段是在這個 with tab_funding: 的縮排內
-    # 千萬不要再寫 st.tabs(...)
+    
 
 with tab_panwatch:
     st.subheader("👀 PanWatch 鏈上監控")
