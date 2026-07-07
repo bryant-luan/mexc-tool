@@ -597,37 +597,28 @@ try:
     all_symbols = get_all_symbols()
 # 這是你唯一的 Tab 定義入口
 # 1. 定義你的分頁名稱 (剛好 9 個)
+# 1. 確保這一段在程式碼中只出現一次！
 tabs_names = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
 
-# 2. 一次性定義這 9 個變數，不多也不少
-(tab_tv, tab_chart, tab_trade, tab_auto, 
- tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch) = st.tabs(tabs_names)# ------------------------------------------------------------------
-tabs_list = [
-    "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
-    "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
-]
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = 
-# --- 現在把各分頁的內容分別填入 ---
+# 2. 這是最正確的定義方式，左邊 9 個變數，對應右邊 9 個名稱
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_names)
 
+# 3. 接下來，下面所有的 with 區塊一定要嚴格對齊
 with tab_tv:
-    # (貼上你原本 tab_tv 的內容)
-    pass
+    st.write("這是 TV 頁面")
 
 with tab_chart:
-    # (貼上你原本 tab_chart 的內容)
-    pass
-
-# ... 其他分頁以此類推 ...
+    st.write("這是 K線頁面")
+    
+# ... (中間省略) ...
 
 with tab_panwatch:
     st.subheader("👀 PanWatch 鏈上監控")
-    if st.button("啟動鏈上掃描", key="panwatch_scan_btn"): # 這裡加上了獨一無二的 key
-        with st.spinner("正在讀取鏈上數據..."):
-            st.info("PanWatch 模組已就緒。"))# ------------------------------------------------------------------
-# Tab 0：TradingView 圖表（免費 widget 內嵌）
+    if st.button("啟動鏈上掃描", key="panwatch_btn_unique"): 
+        st.info("PanWatch 啟動中...")
 # ------------------------------------------------------------------
 with tab_tv:
     st.subheader(f"TradingView 圖表（{exchange}）")
