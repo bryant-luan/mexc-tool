@@ -593,53 +593,46 @@ def symbol_picker(label: str, key_prefix: str, symbols: list, default: str):
 # ------------------------------------------------------------------
 # 取得目前交易所的所有幣對清單
 # ------------------------------------------------------------------
+
+# ------------------------------------------------------------------
+# 1. 唯一且正確的 Tabs 定義區塊 (請確保全檔案只出現這一次！)
+# ------------------------------------------------------------------
 try:
     all_symbols = get_all_symbols()
-# 這是你唯一的 Tab 定義入口
-# 1. 定義你的分頁名稱 (剛好 9 個)
-# 1. 確保這一段在程式碼中只出現一次！
+
 tabs_names = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
 
-# 2. 這是最正確的定義方式，左邊 9 個變數，對應右邊 9 個名稱
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_names)
+# 一次性定義 9 個變數
+(tab_tv, tab_chart, tab_trade, tab_auto, 
+ tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch) = st.tabs(tabs_names)
 
-# 3. 接下來，下面所有的 with 區塊一定要嚴格對齊
+# ------------------------------------------------------------------
+# 2. 各分頁內容 (確保每個 with 區塊都與上面的定義對齊)
+# ------------------------------------------------------------------
 with tab_tv:
-    st.write("這是 TV 頁面")
+    st.write("TradingView 監控區")
+    # 你的原程式碼...
 
 with tab_chart:
-    st.write("這是 K線頁面")
-    
-# ... (中間省略) ...
+    st.write("K 線分析區")
+    # 你的原程式碼...
+
+# ... (中間省略，保持原本的內容) ...
+
+with tab_funding:
+    st.subheader("💰 資金費率監控")
+    # 這是你原本那段複雜的循環，請確保這一段是在這個 with tab_funding: 的縮排內
+    # 千萬不要再寫 st.tabs(...)
 
 with tab_panwatch:
     st.subheader("👀 PanWatch 鏈上監控")
-    if st.button("啟動鏈上掃描", key="panwatch_btn_unique"): 
-        st.info("PanWatch 啟動中...")
-# ------------------------------------------------------------------
-with tab_tv:
-    st.subheader(f"TradingView 圖表（{exchange}）")
-    st.caption("使用 TradingView 官方公開圖表 widget，畫線工具、指標都可以在上面直接用。")
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        tv_symbol = symbol_picker("幣對", "tv", all_symbols, default_symbol)
-    with col2:
-        tv_interval_label = st.selectbox(
-            "週期", ["1分", "5分", "15分", "1小時", "4小時", "日線"], index=3, key="tv_interval"
-        )
-    with col3:
-        tv_theme = st.selectbox("主題", ["dark", "light"], key="tv_theme")
-
-    interval_map = {"1分": "1", "5分": "5", "15分": "15", "1小時": "60", "4小時": "240", "日線": "D"}
-    components.html(
-        tradingview_widget_html(tv_symbol, interval_map[tv_interval_label], tv_theme),
-        height=620,
-    )
-    st.info("提醒：若該幣對在 TradingView 上沒有對應資料，圖表可能顯示空白，可改用「K 線圖」分頁改用交易所原生資料。")
-
+    st.info("此模組為獨立監控區。")
+    if st.button("啟動鏈上掃描", key="unique_panwatch_scan_btn"): # 注意 key 要唯一
+        with st.spinner("讀取中..."):
+            st.success("PanWatch 模組準備就緒。")
 # ------------------------------------------------------------------
 # Tab 1：K 線圖（交易所原生資料）
 # ------------------------------------------------------------------
