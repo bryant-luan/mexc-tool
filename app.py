@@ -815,16 +815,19 @@ with tab_funding:
     
     df_funding = get_funding_rates()
     
-    if not df_funding.empty:
-        # 下面這一整段必須比上面多縮排 4 個空格 (共 8 個空格)
-        st.dataframe(df_funding.style.map(
-            lambda x: 'color: green' if isinstance(x, float) and x < 0 else 'color: red',
-            subset=['資金費率']
-        ), use_container_width=True)
+if not df_funding.empty:
+        # 新增這一行：只篩選出資金費率小於 0 的資料
+        df_negative = df_funding[df_funding['資金費率'] < 0]
+        
+        if not df_negative.empty:
+            st.dataframe(df_negative.style.map(
+                lambda x: 'color: green', 
+                subset=['資金費率']
+            ), use_container_width=True)
+        else:
+            st.info("目前沒有發現負費率的合約。")
     else:
-        # 下面這一整段同樣要縮排
-        st.info("目前無法讀取資金費率資料。")
-# ------------------------------------------------------------------
+        st.info("目前無法讀取資金費率資料。")# ------------------------------------------------------------------
 # Tab 7：TradingView Webhook 說明
 # ------------------------------------------------------------------
 with tab_webhook:
