@@ -601,28 +601,31 @@ def symbol_picker(label: str, key_prefix: str, symbols: list, default: str):
 # ------------------------------------------------------------------
 try:
     all_symbols = get_all_symbols()
-except requests.exceptions.RequestException as e:
-    st.error(f"無法取得幣對清單：{e}")
-    all_symbols = ["BTCUSDT", "ETHUSDT"] if exchange == "MEXC" else ["BTC_USDT", "ETH_USDT"]
+# 這是你唯一的 Tab 定義入口
+tabs_list = [
+    "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
+    "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
+]
 
-default_symbol = None
-for candidate in (["BTCUSDT"] if exchange == "MEXC" else ["BTC_USDT"]):
-    if candidate in all_symbols:
-        default_symbol = candidate
-        break
-if default_symbol is None:
-    default_symbol = all_symbols[0]
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(
-   # 找到原本的定義並改為這樣：
-# ------------------------------------------------------------------
+# 這裡一次定義所有變數，絕對不要在其他地方再寫 st.tabs
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
+
+# 接著，把每個分頁的內容「分別」寫在各自的 with 區塊裡
+with tab_tv:
+    # (填入你原本 tab_tv 的內容)
+    pass
+
+with tab_panwatch:
+    st.subheader("👀 PanWatch 鏈上監控")
+    if st.button("啟動鏈上掃描", key="panwatch_btn"): # 注意！一定要加上唯一的 key
+        st.info("PanWatch 數據載入中...")# ------------------------------------------------------------------
 # 統一入口：所有分頁定義 (在這裡定義，只定義一次！)
 # ------------------------------------------------------------------
 tabs_list = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
-
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = 
 # --- 現在把各分頁的內容分別填入 ---
 
 with tab_tv:
@@ -1084,9 +1087,6 @@ with tab_funding:
 # ------------------------------------------------------------------
 # ------------------------------------------------------------------
 # 新增 Tab 8：PanWatch 監控中心
-tab_panwatch = st.tabs(["📺 TV", "📈 K線", "🛒 下單", "🤖 自動", "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"])
-# ... (這裡需要根據你原先 st.tabs 的順序調整) ...
-
 with tab_panwatch:
     st.subheader("👀 PanWatch 鏈上監控")
     st.info("這裡顯示鏈上異動資訊。請確保你已安裝對應的數據依賴套件。")
