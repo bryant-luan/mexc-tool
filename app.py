@@ -16,57 +16,51 @@ class LocalFundingScanner:
     def __init__(self):
         pass
 
-    def get_filtered_df(self, search="", only_negative=False, threshold=None, sort_by="funding", ascending=True):
+   def get_filtered_df(self, search="", only_negative=False, threshold=None, sort_by="funding", ascending=True):
         data = []
-        # 1. 抓取 Gate.io 真實數據
+        # 1. 抓取 Gate.io 數據
         try:
             gate_res = requests.get("https://api.gateio.ws/api/v4/futures/usdt/tickers", timeout=5).json()
-            for item in gate_res:
-                fr = float(item.get("funding_rate", 0))
-                symbol = item.get("contract", "")
-                if symbol.endswith("_USDT"):
-                    data.append({
-                        "exchange": "Gate.io", "symbol": symbol, "funding": fr,
-                        "status": "🟢 負費率" if fr < 0 else "🔴 正費率", "next_funding": "每 8 小時"
-                    })
-        except Exception:
-            pass
-
-        # 2. 抓取 MEXC 真實數據
-        try:
-            mexc_res = requests.get("https://contract.mexc.com/api/v1/contract/ticker", timeout=5).json()
-            if mexc_res.get("success") and isinstance(mexc_res.get("data"), list):
-                for item in mexc_res["data"]:
-                    fr = float(item.get("fundingRate", 0))
-                    symbol = item.get("symbol", "")
+            if isinstance(gate_res, list):
+                for item in gate_res:
+                    fr = float(item.get("funding_rate", 0))
+                    symbol = item.get("contract", "")
                     if symbol.endswith("_USDT"):
                         data.append({
-                            "exchange": "MEXC", "symbol": symbol, "funding": fr,
-                            "status": "🟢 負費率" if fr < 0 else "🔴 正費率", "next_funding": "每 8 小時"
+                            "exchange": "Gate.io", "symbol": symbol, "funding": fr,
+                            "status": "🟢 負費率" if fr < 0 else "🔴 正費率", "next_funding": "8h"
                         })
         except Exception:
             pass
 
-        # 3. 兜底虛擬數據（確保隨時有 20 筆以上）
-        if len(data) < 20:
-            for i in range(1, 25):
-                data.append({
-                    "exchange": "Gate.io" if i % 2 == 0 else "MEXC",
-                    "symbol": f"V_TOKEN_{i}_USDT", "funding": -0.0015 + (i * 0.0001),
-                    "status": "🟢 負費率" if (-0.0015 + (i * 0.0001)) < 0 else "🔴 正費率", "next_funding": "08:00:00"
-                })
-
+        # 2. 抓取 MEXC 數據 (加上容錯檢查)
+        try:
+            mexc_res = requests.get("https://contract.mexc.com/api/v1/contract/ticker", timeout=5).json()
+            # 💡 重點：這裡加入了多重檢查，確保數據存在才讀取
+            if mexc_res and isinstance(mexc_res, dict) and mexc_res.get("success"):
+                ticker_data = mexc_res.get("data", [])
+                if isinstance(ticker_data, list):
+                    for item in ticker_data:
+                        fr = float(item.get("fundingRate", 0))
+                        symbol = item.get("symbol", "")
+                        data.append({
+                            "exchange": "MEXC", "symbol": symbol, "funding": fr,
+                            "status": "🟢 負費率" if fr < 0 else "🔴 正費率", "next_funding": "8h"
+                        })
+        except Exception:
+            pass
+            
+        # 3. 轉成 DataFrame 並過濾
         df = pd.DataFrame(data)
-        if search:
-            df = df[df["symbol"].str.contains(search.upper())]
+        if df.empty:
+            return df
+            
         if only_negative:
-            df = df[df["funding"] < 0]
+            df = df[df['funding'] < 0]
+        if search:
+            df = df[df['symbol'].str.contains(search, case=False)]
+        
         return df.sort_values(by=sort_by, ascending=ascending)
-
-    def execute_one_click_order(self, exchange, symbol, funding):
-        return {"status": "success", "msg": f"Vedanta 引擎：已對接套利模組"}
-    def add_to_watch_list(self, symbol):
-        return True
 # ==================================================================
 # 全域基礎設定與變數
 # ==================================================================
