@@ -815,13 +815,14 @@ with tab_funding:
     df_funding = get_funding_rates()
     if not df_funding.empty:
         # 將負費率標記顏色
-    st.dataframe(df_funding.style.map(  # 這裡從 applymap 改成 map
-    lambda x: 'color: green' if isinstance(x, float) and x < 0 else 'color: red',
-    subset=['資金費率']
-), use_container_width=True)
+    if not df_funding.empty:
+
+        st.dataframe(df_funding.style.map(
+            lambda x: 'color: green' if isinstance(x, float) and x < 0 else 'color: red',
+            subset=['資金費率']
+        ), use_container_width=True)
     else:
         st.info("目前無法讀取資金費率資料。")
-
 # ------------------------------------------------------------------
 # Tab 7：TradingView Webhook 說明
 # ------------------------------------------------------------------
