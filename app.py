@@ -614,13 +614,32 @@ if default_symbol is None:
     default_symbol = all_symbols[0]
 tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(
    # 找到原本的定義並改為這樣：
+# ------------------------------------------------------------------
+# 統一入口：所有分頁定義 (在這裡定義，只定義一次！)
+# ------------------------------------------------------------------
 tabs_list = [
-  "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
+    "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
 tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
-)# ------------------------------------------------------------------
+
+# --- 現在把各分頁的內容分別填入 ---
+
+with tab_tv:
+    # (貼上你原本 tab_tv 的內容)
+    pass
+
+with tab_chart:
+    # (貼上你原本 tab_chart 的內容)
+    pass
+
+# ... 其他分頁以此類推 ...
+
+with tab_panwatch:
+    st.subheader("👀 PanWatch 鏈上監控")
+    if st.button("啟動鏈上掃描", key="panwatch_scan_btn"): # 這裡加上了獨一無二的 key
+        with st.spinner("正在讀取鏈上數據..."):
+            st.info("PanWatch 模組已就緒。"))# ------------------------------------------------------------------
 # Tab 0：TradingView 圖表（免費 widget 內嵌）
 # ------------------------------------------------------------------
 with tab_tv:
