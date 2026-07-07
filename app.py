@@ -615,25 +615,27 @@ tabs_names = [
 # ==================================================================
 # 1. 唯一且正確的 Tabs 定義區塊 (全檔案只留這一處！)
 # ==================================================================
-tabs_names = [
+# ------------------------------------------------------------------
+# 1. 唯一且正確的分頁定義 (放在所有 class 和 def 之後)
+# ------------------------------------------------------------------
+tabs_list = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
+# 這裡定義一次，後面絕對不要再出現 st.tabs
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
 
-# 一次性定義 9 個變數
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_names)
-
-# ==================================================================
-# 2. 各分頁內容 (確保縮排正確)
-# ==================================================================
+# ------------------------------------------------------------------
+# 2. 各分頁的內容 (請確保你的程式碼都縮排在這裡面)
+# ------------------------------------------------------------------
 with tab_tv:
     st.write("TradingView 監控區")
 
 with tab_chart:
-    st.write("K 線分析區")
+    st.write("K 線圖表區")
 
 with tab_trade:
-    st.write("下單區")
+    st.write("快速下單區")
 
 with tab_auto:
     st.write("自動交易區")
@@ -645,18 +647,17 @@ with tab_webhook:
     st.write("Webhook 設定區")
 
 with tab_account:
-    st.write("帳戶管理區")
+    st.write("帳戶總覽區")
 
 with tab_funding:
     st.subheader("💰 資金費率監控")
-    # 把你原本那一長串費率監控的程式碼放在這裡面
-    # st.dataframe(df) 等
+    # ✅ 把你原本那一大段「費率監控的循環代碼」完整貼在這裡
+    # 確保它們有正確縮排，與 st.subheader 在同一個層級
 
 with tab_panwatch:
     st.subheader("👀 PanWatch 鏈上監控")
-    if st.button("啟動鏈上掃描", key="panwatch_btn_final"):
-        with st.spinner("正在讀取數據..."):
-            st.success("PanWatch 模組運作正常。")
+    if st.button("啟動鏈上掃描", key="panwatch_btn"):
+        st.success("PanWatch 系統已連線。")
 # ------------------------------------------------------------------
 # Tab 1：K 線圖（交易所原生資料）
 # ------------------------------------------------------------------
