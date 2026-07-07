@@ -612,34 +612,51 @@ tabs_names = [
 # ------------------------------------------------------------------
 # 2. 各分頁內容 (確保每個 with 區塊都與上面的定義對齊)
 # ------------------------------------------------------------------
-# [1] 這是全檔案中唯一的一次定義，別的地方絕對不能再寫 st.tabs
-tabs_list = [
+# ==================================================================
+# 1. 唯一且正確的 Tabs 定義區塊 (全檔案只留這一處！)
+# ==================================================================
+tabs_names = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
 
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
+# 一次性定義 9 個變數
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_names)
+
+# ==================================================================
+# 2. 各分頁內容 (確保縮排正確)
+# ==================================================================
 with tab_tv:
     st.write("TradingView 監控區")
-    # 你的原程式碼...
 
 with tab_chart:
     st.write("K 線分析區")
-    # 你的原程式碼...
 
-# ... (中間省略，保持原本的內容) ...
+with tab_trade:
+    st.write("下單區")
+
+with tab_auto:
+    st.write("自動交易區")
+
+with tab_tpsl:
+    st.write("風控監控區")
+
+with tab_webhook:
+    st.write("Webhook 設定區")
+
+with tab_account:
+    st.write("帳戶管理區")
 
 with tab_funding:
     st.subheader("💰 資金費率監控")
-    # 這是你原本那段複雜的循環，請確保這一段是在這個 with tab_funding: 的縮排內
-    
+    # 把你原本那一長串費率監控的程式碼放在這裡面
+    # st.dataframe(df) 等
 
 with tab_panwatch:
     st.subheader("👀 PanWatch 鏈上監控")
-    st.info("此模組為獨立監控區。")
-    if st.button("啟動鏈上掃描", key="unique_panwatch_scan_btn"): # 注意 key 要唯一
-        with st.spinner("讀取中..."):
-            st.success("PanWatch 模組準備就緒。")
+    if st.button("啟動鏈上掃描", key="panwatch_btn_final"):
+        with st.spinner("正在讀取數據..."):
+            st.success("PanWatch 模組運作正常。")
 # ------------------------------------------------------------------
 # Tab 1：K 線圖（交易所原生資料）
 # ------------------------------------------------------------------
