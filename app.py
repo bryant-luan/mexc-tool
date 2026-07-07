@@ -810,13 +810,10 @@ with tab_positions:
 # ------------------------------------------------------------------
 # Tab 6：資金費率 (請複製並取代您的最後一段程式碼)
 # ------------------------------------------------------------------
-with tab_funding:
-    st.subheader("💰 資金費率掃描（Gate.io + MEXC 永續合約）")
+df_funding = get_funding_rates()
     
-    df_funding = get_funding_rates()
-    
-if not df_funding.empty:
-        # 新增這一行：只篩選出資金費率小於 0 的資料
+    if not df_funding.empty:
+        # 篩選負費率
         df_negative = df_funding[df_funding['資金費率'] < 0]
         
         if not df_negative.empty:
@@ -827,7 +824,9 @@ if not df_funding.empty:
         else:
             st.info("目前沒有發現負費率的合約。")
     else:
-        st.info("目前無法讀取資金費率資料。")# ------------------------------------------------------------------
+        # 這個 else 必須和上面第一層的 if 對齊
+        st.info("目前無法讀取資金費率資料。")
+# ------------------------------------------------------------------
 # Tab 7：TradingView Webhook 說明
 # ------------------------------------------------------------------
 with tab_webhook:
