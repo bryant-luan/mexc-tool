@@ -600,15 +600,15 @@ def symbol_picker(label: str, key_prefix: str, symbols: list, default: str):
 try:
     all_symbols = get_all_symbols()
 
-tabs_names = [
+# ------------------------------------------------------------------
+# 這是全檔案中唯一的一次定義，請放在所有邏輯之後，with 區塊之前
+# ------------------------------------------------------------------
+tab_names = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
 
-# 一次性定義 9 個變數
-(tab_tv, tab_chart, tab_trade, tab_auto, 
- tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch) = 
-
+tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tab_names)
 # ------------------------------------------------------------------
 # 2. 各分頁內容 (確保每個 with 區塊都與上面的定義對齊)
 # ------------------------------------------------------------------
@@ -624,7 +624,6 @@ tabs_list = [
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
 
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
 
 # ------------------------------------------------------------------
 # 2. 各分頁的內容 (請確保你的程式碼都縮排在這裡面)
