@@ -602,25 +602,15 @@ def symbol_picker(label: str, key_prefix: str, symbols: list, default: str):
 try:
     all_symbols = get_all_symbols()
 # 這是你唯一的 Tab 定義入口
-tabs_list = [
+# 1. 定義你的分頁名稱 (剛好 9 個)
+tabs_names = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
 ]
 
-# 這裡一次定義所有變數，絕對不要在其他地方再寫 st.tabs
-tab_tv, tab_chart, tab_trade, tab_auto, tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch = st.tabs(tabs_list)
-
-# 接著，把每個分頁的內容「分別」寫在各自的 with 區塊裡
-with tab_tv:
-    # (填入你原本 tab_tv 的內容)
-    pass
-
-with tab_panwatch:
-    st.subheader("👀 PanWatch 鏈上監控")
-    if st.button("啟動鏈上掃描", key="panwatch_btn"): # 注意！一定要加上唯一的 key
-        st.info("PanWatch 數據載入中...")# ------------------------------------------------------------------
-# 統一入口：所有分頁定義 (在這裡定義，只定義一次！)
-# ------------------------------------------------------------------
+# 2. 一次性定義這 9 個變數，不多也不少
+(tab_tv, tab_chart, tab_trade, tab_auto, 
+ tab_tpsl, tab_webhook, tab_account, tab_funding, tab_panwatch) = st.tabs(tabs_names)# ------------------------------------------------------------------
 tabs_list = [
     "📺 TV", "📈 K線", "🛒 下單", "🤖 自動", 
     "🎯 風控", "🔗 Webhook", "💰 帳戶", "💰 費率", "👀 PanWatch"
