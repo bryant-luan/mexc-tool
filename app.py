@@ -788,7 +788,38 @@ with tab_positions:
         except ImportError:
             st.warning("尚未安裝 streamlit-autorefresh（`pip install streamlit-autorefresh`），目前先用手動刷新按鈕")
             auto_refresh = False
-# ------------------------------------------------------------------
+# 在 auto_refresh 下方，顯示 MEXC 持倉
+    st.divider()
+    
+    # 使用 Expander 讓介面更乾淨，不會佔用太多空間
+    with st.expander("查看 MEXC 合約持倉詳細資訊", expanded=True):
+        if pos_mexc_key and pos_mexc_secret:
+            try:
+                # 1. 建立 MEXC 實例
+                mf = MEXCFuturesExchange(api_key=pos_mexc_key, api_secret=pos_mexc_secret)
+                
+                # 2. 獲取資料
+                raw_data = mf.get_positions()
+                
+                # 3. 處理並顯示結果
+                if raw_data:
+                    df = pd.DataFrame(raw_data)
+                    
+                    # 格式化顯示：處理可能存在的 NaN 或是無法顯示的數值
+                    # 讓未實現盈虧顯示為 0 而不是 —
+                    if 'unrealised_pnl' in df.columns:
+                        df['unrealised_pnl'] = df['unrealised_pnl'].fillna(0)
+                    
+                    st.success(f"成功取得 {len(df)} 筆持倉")
+                    st.dataframe(df, use_container_width=True)
+                else:
+                    st.info("目前 MEXC 帳戶沒有合約持倉。")
+                    
+            except Exception as e:
+                st.error(f"⚠️ MEXC 連線錯誤: {e}")
+                st.caption("請檢查 API Key 權限是否包含「合約讀取」，或確認是否輸入正確。")
+        else:
+            st.warning("請先在上方輸入 MEXC 的 API Key 與 Secret。")# ------------------------------------------------------------------
 # Tab 6：資金費率 (請複製並取代您的最後一段程式碼)
 # ------------------------------------------------------------------
 with tab_funding:
