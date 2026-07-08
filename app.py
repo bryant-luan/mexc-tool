@@ -796,12 +796,13 @@ with tab_positions:
 df_positions = get_positions()
 
 # 【修正點】：先檢查 df_positions 是不是 None，再檢查它是不是空的
+# 這是修正後的顯示邏輯
+# 這是修正後的顯示邏輯
 if df_positions is None or df_positions.empty:
     st.info("目前沒有追蹤中的持倉資料。")
 else:
-    # 這裡放您的顯示邏輯
-    st.dataframe(df_positions)    )
-
+    # 這裡確保括號完全正確對齊
+    st.dataframe(df_positions, use_container_width=True)
 # ------------------------------------------------------------------
 # Tab 6：資金費率
 # ------------------------------------------------------------------
