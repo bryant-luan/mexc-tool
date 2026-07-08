@@ -788,24 +788,6 @@ with tab_positions:
         except ImportError:
             st.warning("尚未安裝 streamlit-autorefresh（`pip install streamlit-autorefresh`），目前先用手動刷新按鈕")
             auto_refresh = False
-
-    if st.button("🔄 立即查詢所有持倉", key="btn_query_all_positions") or auto_refresh:
-        with st.spinner("查詢中..."):
-            df_positions = query_all_positions(pos_gate_key, pos_gate_secret, pos_mexc_key, pos_mexc_secret)
-# 取得資料
-df_positions = get_positions()
-
-# 【修正點】：先檢查 df_positions 是不是 None，再檢查它是不是空的
-# 這是修正後的顯示邏輯
-# 這是修正後的顯示邏輯
-if df_positions is None or df_positions.empty:
-    st.info("目前沒有追蹤中的持倉資料。")
-else:
-    # 這裡確保括號完全正確對齊
-    st.dataframe(df_positions, use_container_width=True)
-# ------------------------------------------------------------------
-# Tab 6：資金費率
-# ------------------------------------------------------------------
 # ------------------------------------------------------------------
 # Tab 6：資金費率 (請複製並取代您的最後一段程式碼)
 # ------------------------------------------------------------------
@@ -813,21 +795,26 @@ with tab_funding:
     st.subheader("💰 資金費率掃描（Gate.io + MEXC 永續合約）")
     st.caption("僅顯示負費率合約。")
     
-    df_funding = get_funding_rates()
-    
-    if not df_funding.empty:
-        df_negative = df_funding[df_funding['資金費率'] < 0]
+    # 加入錯誤處理，防止 get_funding_rates 失敗導致程式崩潰
+    try:
+        df_funding = get_funding_rates()
         
-        if not df_negative.empty:
-            st.dataframe(df_negative.style.map(
-                lambda x: 'color: green', 
-                subset=['資金費率']
-            ), use_container_width=True)
+        # 檢查是否為 None，並且確認是否為 DataFrame
+        if df_funding is not None and not df_funding.empty:
+            df_negative = df_funding[df_funding['資金費率'] < 0]
+            
+            if not df_negative.empty:
+                st.dataframe(df_negative.style.map(
+                    lambda x: 'color: green', 
+                    subset=['資金費率']
+                ), use_container_width=True)
+            else:
+                st.info("目前沒有發現負費率的合約。")
         else:
-            st.info("目前沒有發現負費率的合約。")
-    else:
-        st.info("目前無法讀取資金費率資料。")
-# ------------------------------------------------------------------
+            st.info("目前無法讀取資金費率資料或資料為空。")
+            
+    except Exception as e:
+        st.error(f"讀取資金費率時發生異常: {e}")# ------------------------------------------------------------------
 # Tab 7：TradingView Webhook 說明
 # ------------------------------------------------------------------
 with tab_webhook:
