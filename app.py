@@ -796,51 +796,70 @@ with tab_positions:
     tab_mexc, tab_gate = st.tabs(["MEXC 合約持倉", "Gate.io 合約持倉"])
 
 # 1. MEXC 處理邏輯
-    with tab_mexc:
-        if pos_mexc_key and pos_mexc_secret:
-            try:
-                mf = MEXCFuturesExchange(api_key=pos_mexc_key, api_secret=pos_mexc_secret)
-                raw_data = mf.get_positions()
-                if raw_data:
-                    # 將 MEXC 資料轉為標準格式
-                    standard_data = [{
-                        "合約": item.get("symbol"),
-                        "方向": "做多" if item.get("positionType") == 1 else "做空",
-                        "持倉": item.get("holdVol"),
-                        "開倉均價": item.get("holdAvgPrice"),
-                        "強平價格": item.get("liquidatePrice"),
-                        "未實現盈虧": item.get("unRealizedPnl"),
-                        "槓桿": item.get("leverage")
-                    } for item in raw_data]
-                    st.dataframe(pd.DataFrame(standard_data), use_container_width=True)
-                else:
-                    st.info("目前無持倉")
-            except Exception as e:
-                st.error(f"MEXC 錯誤: {e}")
+with tab_mexc:
+    if pos_mexc_key and pos_mexc_secret:
+        try:
+            mf = MEXCFuturesExchange(api_key=pos_mexc_key, api_secret=pos_mexc_secret)
+            raw_data = mf.get_positions()
+            
+            if raw_data:
+                processed_data = []
+                for item in raw_data:
+                    # 強制轉型確保運算不報錯
+                    pt = int(item.get("positionType", 0))
+                    direction = "做多" if pt == 1 else ("做空" if pt == 2 else "未知")
+                    
+                    processed_data.append({
+                        "合約": item.get("symbol", "N/A"),
+                        "方向": direction,
+                        "持倉量": float(item.get("holdVol", 0)),
+                        "開倉均價": float(item.get("holdAvgPrice", 0)),
+                        "強平價格": float(item.get("liquidatePrice", 0)),
+                        "未實現盈虧": float(item.get("unRealizedPnl", 0)),
+                        "槓桿": f"{item.get('leverage', 1)}x"
+                    })
+                
+                df = pd.DataFrame(processed_data)
+                # 使用 column_config 讓數字更易讀
+                st.dataframe(df, use_container_width=True, column_config={
+                    "未實現盈虧": st.column_config.NumberColumn(format="%.4f"),
+                    "持倉量": st.column_config.NumberColumn(format="%.2f")
+                })
+            else:
+                st.info("目前無持倉")
+        except Exception as e:
+            st.error(f"MEXC 錯誤: {e}")
 
-    # 2. Gate.io 處理邏輯
-    with tab_gate:
-        if pos_gate_key and pos_gate_secret:
-            try:
-                # 假設 gf 為已初始化的 Gate 物件
-                gf = GateFuturesExchange(api_key=pos_gate_key, api_secret=pos_gate_secret)
-                gate_data = gf.get_positions()
-                if gate_data:
-                    # 將 Gate 資料轉為標準格式
-                    standard_data = [{
-                        "合約": item.get("contract"),
-                        "方向": "做多" if "long" in item.get("mode", "") else "做空",
-                        "持倉": item.get("size"),
-                        "開倉均價": item.get("entry_price"),
-                        "強平價格": item.get("liq_price"),
-                        "未實現盈虧": item.get("unrealised_pnl"),
-                        "槓桿": item.get("lever")
-                    } for item in gate_data]
-                    st.dataframe(pd.DataFrame(standard_data), use_container_width=True)
-                else:
-                    st.info("目前無持倉")
-            except Exception as e:
-                st.error(f"Gate.io 錯誤: {e}")
+# 2. Gate.io 處理邏輯
+with tab_gate:
+    if pos_gate_key and pos_gate_secret:
+        try:
+            gf = GateFuturesExchange(api_key=pos_gate_key, api_secret=pos_gate_secret)
+            gate_data = gf.get_positions()
+            
+            if gate_data:
+                processed_data = []
+                for item in gate_data:
+                    size = float(item.get("size", 0))
+                    processed_data.append({
+                        "合約": item.get("contract", "N/A"),
+                        "方向": "做多" if size > 0 else "做空",
+                        "持倉量": abs(size),
+                        "開倉均價": float(item.get("entry_price", 0)),
+                        "強平價格": float(item.get("liq_price", 0)),
+                        "未實現盈虧": float(item.get("unrealised_pnl", 0)),
+                        "槓桿": f"{item.get('lever', 1)}x"
+                    })
+                
+                df = pd.DataFrame(processed_data)
+                st.dataframe(df, use_container_width=True, column_config={
+                    "未實現盈虧": st.column_config.NumberColumn(format="%.4f"),
+                    "持倉量": st.column_config.NumberColumn(format="%.2f")
+                })
+            else:
+                st.info("目前無持倉")
+        except Exception as e:
+            st.error(f"Gate.io 錯誤: {e}")
 # ------------------------------------------------------------------
 with tab_funding:
     st.subheader("💰 資金費率掃描（Gate.io + MEXC 永續合約）")
