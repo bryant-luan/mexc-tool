@@ -482,27 +482,20 @@ def query_all_positions(gate_key, gate_secret, mexc_key, mexc_secret) -> pd.Data
         st.caption("ℹ️ 尚未輸入 Gate.io 金鑰，略過 Gate.io 查詢")
 
     if mexc_key and mexc_secret:
-        try:
-            balances = get_mexc_spot_balance(mexc_key, mexc_secret)
-            for b in balances:
-                rows.append({
-                    "交易所": "MEXC", "市場": "現貨", "幣種/合約": b["asset"],
-                    "方向": "—", "數量": float(b["free"]) + float(b["locked"]),
-                    "進場價": "—", "槓桿": "—", "未實現盈虧": "—",
-                })
-        except Exception as e:
-            st.error(f"MEXC 現貨查詢失敗：{e}")
-
-        try:
-            mf = MEXCFuturesExchange(api_key=mexc_key, api_secret=mexc_secret)
-            rows += _position_rows("MEXC", "合約", mf.get_positions())
-        except ExchangeException as e:
-            st.error(f"MEXC 合約查詢失敗：{e}")
-    else:
-        st.caption("ℹ️ 尚未輸入 MEXC 金鑰，略過 MEXC 查詢")
-
-    return pd.DataFrame(rows)
-
+# 在您的 MEXCFuturesExchange.get_positions() 之後加上這段：
+try:
+    mf = MEXCFuturesExchange(api_key=mexc_key, api_secret=mexc_secret)
+    raw_positions = mf.get_positions() # 這是您原本獲取資料的地方
+    
+    # --- 加入這兩行進行檢查 ---
+    st.write("DEBUG - MEXC 原始 API 回傳結果：")
+    st.write(raw_positions) 
+    # -----------------------
+    
+    # 之後才是您的表格處理邏輯
+    # df = ...
+except Exception as e:
+    st.error(f"連線錯誤或權限不足: {e}")
 
 # ------------------------------------------------------------------
 # 取得目前交易所的所有幣對清單
