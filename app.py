@@ -792,16 +792,15 @@ with tab_positions:
     if st.button("🔄 立即查詢所有持倉", key="btn_query_all_positions") or auto_refresh:
         with st.spinner("查詢中..."):
             df_positions = query_all_positions(pos_gate_key, pos_gate_secret, pos_mexc_key, pos_mexc_secret)
-        if df_positions.empty:
-            st.info("沒有查到任何持倉或非零餘額，或尚未輸入任何金鑰。")
-        else:
-            st.success(f"共查到 {len(df_positions)} 筆")
-            st.dataframe(df_positions, use_container_width=True)
+# 取得資料
+df_positions = get_positions()
 
-    st.caption(
-        "💡 這裡只查詢，不會下單。若要背景 24 小時輪詢並用 Telegram 通知持倉變化，"
-        "請改用專案裡的 `position_poller.py`（獨立背景程式，見 README）。"
-    )
+# 【修正點】：先檢查 df_positions 是不是 None，再檢查它是不是空的
+if df_positions is None or df_positions.empty:
+    st.info("目前沒有追蹤中的持倉資料。")
+else:
+    # 這裡放您的顯示邏輯
+    st.dataframe(df_positions)    )
 
 # ------------------------------------------------------------------
 # Tab 6：資金費率
