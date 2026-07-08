@@ -1,3 +1,12 @@
+import sys
+import os
+
+# 將專案根目錄加入 Python 的模組搜尋路徑
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+import streamlit as st
+from exchange.gate_futures import GateFuturesExchange
+# ... 後續的其他 import
 import ccxt
 import streamlit as st
 import time
