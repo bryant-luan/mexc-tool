@@ -831,6 +831,7 @@ with tab_mexc:
             st.error(f"MEXC 錯誤: {e}")
 
 # 2. Gate.io 處理邏輯
+# 2. Gate.io 處理邏輯 (絕對安全版)
 with tab_gate:
     if pos_gate_key and pos_gate_secret:
         try:
@@ -841,6 +842,12 @@ with tab_gate:
                 processed_data = []
                 for item in gate_data:
                     size = float(item.get("size", 0))
+                    
+                    # 強制定義變數，確保每一行都有值
+                    leverage_val = item.get("lever")
+                    if not leverage_val:
+                        leverage_val = item.get("cross_leverage_limit", 1)
+                    
                     processed_data.append({
                         "合約": item.get("contract", "N/A"),
                         "方向": "做多" if size > 0 else "做空",
@@ -852,14 +859,11 @@ with tab_gate:
                     })
                 
                 df = pd.DataFrame(processed_data)
-                st.dataframe(df, use_container_width=True, column_config={
-                    "未實現盈虧": st.column_config.NumberColumn(format="%.4f"),
-                    "持倉量": st.column_config.NumberColumn(format="%.2f")
-                })
+                st.dataframe(df, use_container_width=True)
             else:
                 st.info("目前無持倉")
         except Exception as e:
-            st.error(f"Gate.io 錯誤: {e}")
+            st.error(f"Gate.io 讀取錯誤: {e}")
 # ------------------------------------------------------------------
 with tab_funding:
     st.subheader("💰 資金費率掃描（Gate.io + MEXC 永續合約）")
