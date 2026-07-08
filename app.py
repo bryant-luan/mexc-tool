@@ -481,22 +481,19 @@ def query_all_positions(gate_key, gate_secret, mexc_key, mexc_secret) -> pd.Data
     else:
         st.caption("ℹ️ 尚未輸入 Gate.io 金鑰，略過 Gate.io 查詢")
 
+# 這是假設的代碼結構，請確保您的 if 語句長得像這樣：
     if mexc_key and mexc_secret:
-# 在您的 MEXCFuturesExchange.get_positions() 之後加上這段：
-try:
-    mf = MEXCFuturesExchange(api_key=mexc_key, api_secret=mexc_secret)
-    raw_positions = mf.get_positions() # 這是您原本獲取資料的地方
-    
-    # --- 加入這兩行進行檢查 ---
-    st.write("DEBUG - MEXC 原始 API 回傳結果：")
-    st.write(raw_positions) 
-    # -----------------------
-    
-    # 之後才是您的表格處理邏輯
-    # df = ...
-except Exception as e:
-    st.error(f"連線錯誤或權限不足: {e}")
-
+        try:
+            mf = MEXCFuturesExchange(api_key=mexc_key, api_secret=mexc_secret)
+            raw_positions = mf.get_positions()
+            
+            st.write("DEBUG - MEXC 原始 API 回傳結果：")
+            st.write(raw_positions)
+            
+        except Exception as e:
+            st.error(f"連線錯誤或權限不足: {e}")
+    else:
+        st.warning("請先在側邊欄輸入正確的 MEXC API Key 與 Secret。")
 # ------------------------------------------------------------------
 # 取得目前交易所的所有幣對清單
 # ------------------------------------------------------------------
