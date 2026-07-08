@@ -795,42 +795,52 @@ with tab_positions:
     # 建立兩個分頁，讓顯示更乾淨
     tab_mexc, tab_gate = st.tabs(["MEXC 合約持倉", "Gate.io 合約持倉"])
 
-    # 1. MEXC 部分
+# 1. MEXC 處理邏輯
     with tab_mexc:
         if pos_mexc_key and pos_mexc_secret:
             try:
                 mf = MEXCFuturesExchange(api_key=pos_mexc_key, api_secret=pos_mexc_secret)
                 raw_data = mf.get_positions()
                 if raw_data:
-                    df = pd.DataFrame(raw_data)
-                    st.success(f"找到 {len(df)} 筆 MEXC 持倉")
-                    st.dataframe(df, use_container_width=True)
+                    # 將 MEXC 資料轉為標準格式
+                    standard_data = [{
+                        "合約": item.get("symbol"),
+                        "方向": "做多" if item.get("positionType") == 1 else "做空",
+                        "持倉": item.get("holdVol"),
+                        "開倉均價": item.get("holdAvgPrice"),
+                        "強平價格": item.get("liquidatePrice"),
+                        "未實現盈虧": item.get("unRealizedPnl"),
+                        "槓桿": item.get("leverage")
+                    } for item in raw_data]
+                    st.dataframe(pd.DataFrame(standard_data), use_container_width=True)
                 else:
-                    st.info("目前 MEXC 帳戶沒有合約持倉。")
+                    st.info("目前無持倉")
             except Exception as e:
-                st.error(f"MEXC 讀取錯誤: {e}")
-        else:
-            st.warning("請在上方輸入 MEXC API Key 與 Secret。")
+                st.error(f"MEXC 錯誤: {e}")
 
-    # 2. Gate.io 部分
+    # 2. Gate.io 處理邏輯
     with tab_gate:
         if pos_gate_key and pos_gate_secret:
             try:
-                # 假設您有對應的 GateFuturesExchange 類別
-                from exchange.gate_futures import GateFuturesExchange 
+                # 假設 gf 為已初始化的 Gate 物件
                 gf = GateFuturesExchange(api_key=pos_gate_key, api_secret=pos_gate_secret)
-                
                 gate_data = gf.get_positions()
                 if gate_data:
-                    df_gate = pd.DataFrame(gate_data)
-                    st.success(f"找到 {len(df_gate)} 筆 Gate.io 持倉")
-                    st.dataframe(df_gate, use_container_width=True)
+                    # 將 Gate 資料轉為標準格式
+                    standard_data = [{
+                        "合約": item.get("contract"),
+                        "方向": "做多" if "long" in item.get("mode", "") else "做空",
+                        "持倉": item.get("size"),
+                        "開倉均價": item.get("entry_price"),
+                        "強平價格": item.get("liq_price"),
+                        "未實現盈虧": item.get("unrealised_pnl"),
+                        "槓桿": item.get("lever")
+                    } for item in gate_data]
+                    st.dataframe(pd.DataFrame(standard_data), use_container_width=True)
                 else:
-                    st.info("目前 Gate.io 帳戶沒有合約持倉。")
+                    st.info("目前無持倉")
             except Exception as e:
-                st.error(f"Gate.io 讀取錯誤: {e}")
-        else:
-            st.warning("請在上方輸入 Gate.io API Key 與 Secret。")# Tab 6：資金費率 (請複製並取代您的最後一段程式碼)
+                st.error(f"Gate.io 錯誤: {e}")
 # ------------------------------------------------------------------
 with tab_funding:
     st.subheader("💰 資金費率掃描（Gate.io + MEXC 永續合約）")
