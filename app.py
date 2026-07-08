@@ -848,7 +848,7 @@ with tab_gate:
                         "開倉均價": float(item.get("entry_price", 0)),
                         "強平價格": float(item.get("liq_price", 0)),
                         "未實現盈虧": float(item.get("unrealised_pnl", 0)),
-                        "槓桿": f"{item.get('lever', 1)}x"
+                        "槓桿": f"{leverage_val}x"
                     })
                 
                 df = pd.DataFrame(processed_data)
